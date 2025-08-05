@@ -1,15 +1,129 @@
 * Guile CPS Debugger
 
-A debugger for Guile's CPS (Continuation-Passing Style) intermediate representation.
+A comprehensive debugger for Guile's CPS (Continuation-Passing Style) intermediate representation.
 
 ** Overview
 
-This project provides debugging capabilities for Guile Scheme's CPS intermediate representation.
+The Guile CPS Debugger provides debugging and inspection capabilities for Guile Scheme's CPS intermediate representation. CPS is used internally by Guile's compiler as an intermediate form between high-level Scheme code and low-level bytecode.
+
+This tool aims to help developers:
+- Understand how their Scheme code is transformed into CPS
+- Debug compilation issues
+- Optimize performance by analyzing CPS transformations
+- Learn about Guile's internals
+
+** Features
+
+- [ ] CPS term inspection and pretty-printing
+- [ ] Step-through debugging of CPS transformations
+- [ ] Breakpoint support at CPS level
+- [ ] Variable and continuation tracking
+- [ ] Integration with Guile's compiler tower
+- [ ] Export capabilities for analysis
+
+** Requirements
+
+- GNU Guile 3.0 or later
+- GNU Make
+- Git
 
 ** Installation
 
+*** From Source
+
+#+BEGIN_SRC sh
+git clone https://github.com/dsp-dr/guile-cps-debugger.git
+cd guile-cps-debugger
+make
+sudo make install
+#+END_SRC
+
+*** Development Setup
+
+For development, you can run directly from the source directory:
+
+#+BEGIN_SRC sh
+git clone https://github.com/dsp-dr/guile-cps-debugger.git
+cd guile-cps-debugger
+make check  # Run tests
+#+END_SRC
+
 ** Usage
+
+*** Basic Usage
+
+#+BEGIN_SRC scheme
+(use-modules (cps-debugger))
+
+;; Enable CPS debugging for a procedure
+(cps-debug
+  (lambda (x y)
+    (+ (* x x) (* y y))))
+
+;; Step through CPS transformations
+(cps-step '(define (square x) (* x x)))
+#+END_SRC
+
+*** REPL Integration
+
+The debugger can be integrated into the Guile REPL:
+
+#+BEGIN_SRC scheme
+,use (cps-debugger repl)
+,cps-debug (lambda (x) (+ x 1))
+#+END_SRC
+
+** Architecture
+
+The debugger is structured as follows:
+
+- =cps-debugger/core= - Core debugging engine
+- =cps-debugger/inspector= - CPS term inspection utilities
+- =cps-debugger/pretty= - Pretty-printing for CPS terms
+- =cps-debugger/repl= - REPL integration
+- =cps-debugger/analysis= - Static analysis tools
 
 ** Contributing
 
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (=git checkout -b feature/amazing-feature=)
+3. Commit your changes (=git commit -m 'feat: add amazing feature'=)
+4. Push to the branch (=git push origin feature/amazing-feature=)
+5. Open a Pull Request
+
+Please ensure your code follows the GNU Guile coding standards and includes appropriate tests.
+
+** Roadmap
+
+*** Version 0.1.0 (Current)
+- [X] Basic project structure
+- [ ] Core CPS inspection functionality
+- [ ] Basic pretty-printing
+
+*** Version 0.2.0
+- [ ] Step-through debugging
+- [ ] REPL integration
+- [ ] Basic breakpoint support
+
+*** Version 0.3.0
+- [ ] Full breakpoint system
+- [ ] Variable tracking
+- [ ] Performance analysis tools
+
 ** License
+
+This project is licensed under the GNU General Public License v3.0 - see the [[file:LICENSE][LICENSE]] file for details.
+
+** Acknowledgments
+
+- The GNU Guile development team for their excellent compiler infrastructure
+- Andy Wingo for his work on Guile's CPS implementation
+- The Scheme community for ongoing support and inspiration
+
+** Resources
+
+- [[https://www.gnu.org/software/guile/][GNU Guile Official Website]]
+- [[https://www.gnu.org/software/guile/manual/html_node/Compiling-CPS.html][Guile Manual: Compiling CPS]]
+- [[https://wingolog.org/archives/2013/11/26/a-register-vm-for-guile][Andy Wingo's Blog: CPS in Guile]]

@@ -1,0 +1,41 @@
+# Guile compiled files
+*.go
+*~
+
+# Build artifacts
+/build/
+/dist/
+
+# Autotools
+Makefile.in
+/autom4te.cache/
+/config.cache
+/config.log
+/config.status
+/configure
+/aclocal.m4
+/compile
+/config.guess
+/config.sub
+/depcomp
+/install-sh
+/missing
+/stamp-h1
+
+# Editor files
+\#*\#
+.\#*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test output
+/test-tmp/
+*.log
+*.trs
+
+# Documentation build
+/doc/*.info
+/doc/*.html
+/doc/*.pdf
