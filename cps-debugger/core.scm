@@ -22,6 +22,7 @@
   #:use-module (language cps compile-bytecode)
   #:use-module (system base compile)
   #:use-module (ice-9 match)
+  #:use-module (srfi srfi-9)
   #:export (cps-debug
             cps-step
             make-cps-debugger

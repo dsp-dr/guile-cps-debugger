@@ -25,7 +25,7 @@ all: compile
 compile: $(GOBJECTS)
 
 %.go: %.scm
-	$(GUILD) compile -o $@ $<
+	GUILE_LOAD_PATH=.:$$GUILE_LOAD_PATH $(GUILD) compile -o $@ $<
 
 install: compile
 	@echo "Installing modules to $(moduledir)"
