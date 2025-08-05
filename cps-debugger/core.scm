@@ -18,17 +18,18 @@
 
 (define-module (cps-debugger core)
   #:use-module (language tree-il)
-  #:use-module (language cps)
-  #:use-module (language cps compile-bytecode)
   #:use-module (system base compile)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-9)
+  #:use-module (cps-debugger compat)
   #:export (cps-debug
             cps-step
             make-cps-debugger
             debugger-step
             debugger-continue
-            debugger-break))
+            debugger-break
+            debugger-stepping?
+            debugger-breakpoints))
 
 ;;; Commentary:
 ;;;
@@ -50,19 +51,25 @@
 (define (cps-debug proc)
   "Debug the CPS compilation of PROC."
   (let* ((tree-il (compile proc #:to 'tree-il))
-         (cps (compile tree-il #:from 'tree-il #:to 'cps)))
-    (format #t "~%Debugging CPS for procedure~%")
-    (make-cps-debugger cps)))
+         (cps-or-tree-il (compile-to-cps-compat proc)))
+    (format #t "~%Debugging ~a for procedure~%"
+            (if (cps-available?) "CPS" "Tree-IL"))
+    (make-cps-debugger cps-or-tree-il)))
 
 (define (cps-step form)
   "Step through CPS transformation of FORM."
   (let* ((tree-il (compile form #:to 'tree-il))
-         (cps (compile tree-il #:from 'tree-il #:to 'cps)))
-    (format #t "~%Stepping through CPS transformation~%")
+         (cps-or-pseudo (if (cps-available?)
+                           (compile-to-cps-compat form)
+                           (tree-il->pseudo-cps tree-il))))
+    (format #t "~%Stepping through ~a transformation~%"
+            (if (cps-available?) "CPS" "pseudo-CPS"))
     (format #t "Original form: ~s~%" form)
     (format #t "Tree-IL: ~s~%" tree-il)
-    (format #t "CPS: ~s~%" cps)
-    cps))
+    (format #t "~a: ~s~%" 
+            (if (cps-available?) "CPS" "Pseudo-CPS")
+            cps-or-pseudo)
+    cps-or-pseudo))
 
 (define (debugger-step debugger)
   "Single step through the debugger."

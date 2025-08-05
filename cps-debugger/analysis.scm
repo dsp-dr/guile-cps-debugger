@@ -17,11 +17,11 @@
 ;;; along with guile-cps-debugger.  If not, see <https://www.gnu.org/licenses/>.
 
 (define-module (cps-debugger analysis)
-  #:use-module (language cps)
-  #:use-module (language cps utils)
   #:use-module (ice-9 match)
+  #:use-module (srfi srfi-1)
+  #:use-module (cps-debugger compat)
   #:export (analyze-cps
-            count-continuations
+            count-nodes
             find-call-sites
             analyze-variables
             compute-free-variables))
@@ -33,105 +33,136 @@
 ;;; Code:
 
 (define (analyze-cps cps)
-  "Perform a comprehensive analysis of CPS term."
-  `((continuation-count . ,(count-continuations cps))
+  "Perform a comprehensive analysis of CPS or pseudo-CPS term."
+  `((node-count . ,(count-nodes cps))
     (call-sites . ,(find-call-sites cps))
     (variable-info . ,(analyze-variables cps))
     (free-variables . ,(compute-free-variables cps))))
 
-(define (count-continuations cps)
-  "Count the number of continuations in CPS."
+(define (count-nodes cps)
+  "Count the number of nodes in CPS or pseudo-CPS."
   (let ((count 0))
     (define (visit term)
-      (match term
-        (($ $continue k _ exp)
-         (set! count (+ count 1))
-         (visit-exp exp))
-        (($ $kargs _ _ body)
-         (set! count (+ count 1))
-         (visit body))
-        (($ $kreceive _ _)
-         (set! count (+ count 1)))
-        (($ $kfun _ _ _ _ clause)
-         (set! count (+ count 1))
-         (when clause (visit clause)))
-        (_ #f)))
-    
-    (define (visit-exp exp)
-      (match exp
-        (($ $branch _ exp)
-         (visit-exp exp))
-        (_ #f)))
+      (set! count (+ count 1))
+      (cond
+       ((and (pair? term) (symbol? (car term)))
+        (match term
+          (('lambda meta body)
+           (visit body))
+          (('lambda-case args gensyms body . alt)
+           (visit body)
+           (when (pair? alt) (visit (car alt))))
+          (('call proc . args)
+           (visit proc)
+           (for-each visit args))
+          (('primcall name . args)
+           (for-each visit args))
+          (('if test then else)
+           (visit test)
+           (visit then)
+           (visit else))
+          (('let bindings body)
+           (for-each (lambda (b) (visit (cadr b))) bindings)
+           (visit body))
+          (('begin . exps)
+           (for-each visit exps))
+          (_ #f)))
+       ((symbol? term) #f)
+       (else #f)))
     
     (visit cps)
     count))
 
 (define (find-call-sites cps)
-  "Find all call sites in CPS."
+  "Find all call sites in pseudo-CPS."
   (let ((sites '()))
     (define (visit term)
-      (match term
-        (($ $continue k src ($ $call proc args))
-         (set! sites (cons `((continuation . ,k)
-                            (source . ,src)
-                            (procedure . ,proc)
-                            (arguments . ,args))
-                          sites)))
-        (($ $continue k src ($ $primcall name args))
-         (set! sites (cons `((continuation . ,k)
-                            (source . ,src)
-                            (primitive . ,name)
-                            (arguments . ,args))
-                          sites)))
-        (($ $continue _ _ exp)
-         (visit-exp exp))
-        (($ $kargs _ _ body)
-         (visit body))
-        (($ $kfun _ _ _ _ clause)
-         (when clause (visit clause)))
-        (_ #f)))
-    
-    (define (visit-exp exp)
-      (match exp
-        (($ $branch _ exp)
-         (visit-exp exp))
-        (_ #f)))
+      (cond
+       ((and (pair? term) (symbol? (car term)))
+        (match term
+          (('call proc . args)
+           (set! sites (cons `((type . call)
+                              (procedure . ,proc)
+                              (arguments . ,args))
+                            sites))
+           (visit proc)
+           (for-each visit args))
+          (('primcall name . args)
+           (set! sites (cons `((type . primcall)
+                              (primitive . ,name)
+                              (arguments . ,args))
+                            sites))
+           (for-each visit args))
+          (('lambda meta body)
+           (visit body))
+          (('lambda-case args gensyms body . alt)
+           (visit body)
+           (when (pair? alt) (visit (car alt))))
+          (('if test then else)
+           (visit test)
+           (visit then)
+           (visit else))
+          (('let bindings body)
+           (for-each (lambda (b) (visit (cadr b))) bindings)
+           (visit body))
+          (('begin . exps)
+           (for-each visit exps))
+          (_ #f)))
+       (else #f)))
     
     (visit cps)
     (reverse sites)))
 
 (define (analyze-variables cps)
-  "Analyze variable usage in CPS."
+  "Analyze variable usage in pseudo-CPS."
   (let ((defined '())
         (used '()))
     
-    (define (visit term)
-      (match term
-        (($ $kargs names syms body)
-         (set! defined (append syms defined))
-         (visit body))
-        (($ $continue _ _ exp)
-         (visit-exp exp))
-        (($ $kfun _ _ self _ clause)
-         (when self
-           (set! defined (cons self defined)))
-         (when clause (visit clause)))
-        (_ #f)))
+    (define (visit-def term)
+      (cond
+       ((and (pair? term) (symbol? (car term)))
+        (match term
+          (('lambda-case (req opt rest kw) gensyms body . alt)
+           (set! defined (append req defined))
+           (when opt (set! defined (append opt defined)))
+           (when rest (set! defined (cons rest defined)))
+           (visit-def body)
+           (when (pair? alt) (visit-def (car alt))))
+          (('let bindings body)
+           (set! defined (append (map car bindings) defined))
+           (for-each (lambda (b) (visit-use (cadr b))) bindings)
+           (visit-def body))
+          (_ (visit-use term))))
+       (else (visit-use term))))
     
-    (define (visit-exp exp)
-      (match exp
-        (($ $call proc args)
-         (set! used (cons proc used))
-         (set! used (append args used)))
-        (($ $primcall _ args)
-         (set! used (append args used)))
-        (($ $values args)
-         (set! used (append args used)))
-        (($ $branch _ exp)
-         (visit-exp exp))
-        (_ #f)))
+    (define (visit-use term)
+      (cond
+       ((symbol? term)
+        (set! used (cons term used)))
+       ((and (pair? term) (symbol? (car term)))
+        (match term
+          (('call proc . args)
+           (visit-use proc)
+           (for-each visit-use args))
+          (('primcall name . args)
+           (for-each visit-use args))
+          (('if test then else)
+           (visit-use test)
+           (visit-use then)
+           (visit-use else))
+          (('lambda meta body)
+           (visit-def body))
+          (('lambda-case args gensyms body . alt)
+           (visit-def body)
+           (when (pair? alt) (visit-def (car alt))))
+          (('let bindings body)
+           (visit-def term))
+          (('begin . exps)
+           (for-each visit-use exps))
+          (_ #f)))
+       (else #f)))
     
-    (visit cps)
+    (visit-def cps)
     `((defined . ,(delete-duplicates defined))
       (used . ,(delete-duplicates used)))))
 

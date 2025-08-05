@@ -20,10 +20,15 @@
   #:use-module (cps-debugger core)
   #:use-module (cps-debugger inspector)
   #:use-module (cps-debugger pretty)
+  #:use-module (cps-debugger compat)
   #:re-export (cps-debug
                cps-step
                cps-inspect
-               cps-pretty-print))
+               cps-pretty-print
+               make-cps-debugger
+               debugger-step
+               debugger-continue
+               debugger-break))
 
 ;;; Commentary:
 ;;;

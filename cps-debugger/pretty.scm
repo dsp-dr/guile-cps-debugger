@@ -17,9 +17,10 @@
 ;;; along with guile-cps-debugger.  If not, see <https://www.gnu.org/licenses/>.
 
 (define-module (cps-debugger pretty)
-  #:use-module (language cps)
   #:use-module (ice-9 match)
   #:use-module (ice-9 format)
+  #:use-module (ice-9 pretty-print)
+  #:use-module (cps-debugger compat)
   #:export (cps-pretty-print
             pretty-print-continuation
             pretty-print-expression))
@@ -31,111 +32,99 @@
 ;;; Code:
 
 (define* (cps-pretty-print cps #:key (port (current-output-port)) (indent 0))
-  "Pretty-print CPS term to PORT with INDENT."
+  "Pretty-print CPS or pseudo-CPS term to PORT with INDENT."
   (define (spaces n)
     (make-string n #\space))
   
   (define (pp obj indent)
     (display (spaces indent) port)
-    (match obj
-      (($ $continue k src exp)
-       (format port "(continue ~a" k)
-       (when src
-         (format port " #:src ~s" src))
-       (newline port)
-       (pp-expression exp (+ indent 2))
-       (display (spaces indent) port)
-       (display ")" port))
-      
-      (($ $kargs names syms body)
-       (format port "(kargs ~s ~s" names syms)
-       (newline port)
-       (pp body (+ indent 2))
-       (display (spaces indent) port)
-       (display ")" port))
-      
-      (($ $kreceive arity k)
-       (format port "(kreceive ~s ~a)" arity k))
-      
-      (($ $kfun src meta self tail clause)
-       (format port "(kfun")
-       (when src
-         (format port " #:src ~s" src))
-       (when meta
-         (format port " #:meta ~s" meta))
-       (format port " ~a ~a" self tail)
-       (when clause
+    (cond
+     ;; Handle pseudo-CPS structures
+     ((and (pair? obj) (symbol? (car obj)))
+      (match obj
+        (('lambda meta body)
+         (format port "(lambda ~s" meta)
          (newline port)
-         (pp clause (+ indent 2)))
-       (display (spaces indent) port)
-       (display ")" port))
-      
-      (_
-       (format port "~s" obj))))
-  
-  (define (pp-expression exp indent)
-    (display (spaces indent) port)
-    (match exp
-      (($ $const val)
-       (format port "(const ~s)" val))
-      
-      (($ $prim name)
-       (format port "(prim ~a)" name))
-      
-      (($ $call proc args)
-       (format port "(call ~a ~s)" proc args))
-      
-      (($ $primcall name args)
-       (format port "(primcall ~a ~s)" name args))
-      
-      (($ $values args)
-       (format port "(values ~s)" args))
-      
-      (($ $branch k exp)
-       (format port "(branch ~a" k)
-       (newline port)
-       (pp-expression exp (+ indent 2))
-       (display (spaces indent) port)
-       (display ")" port))
-      
-      (_
-       (format port "~s" exp)))
-    (newline port))
+         (pp body (+ indent 2))
+         (display (spaces indent) port)
+         (display ")" port))
+        
+        (('lambda-case args gensyms body . alt)
+         (format port "(lambda-case ~s ~s" args gensyms)
+         (newline port)
+         (pp body (+ indent 2))
+         (when (pair? alt)
+           (newline port)
+           (pp (car alt) (+ indent 2)))
+         (display (spaces indent) port)
+         (display ")" port))
+        
+        (('call proc . args)
+         (format port "(call ")
+         (pp proc 0)
+         (for-each (lambda (arg)
+                     (display " " port)
+                     (pp arg 0))
+                   args)
+         (display ")" port))
+        
+        (('primcall name . args)
+         (format port "(primcall ~a" name)
+         (for-each (lambda (arg)
+                     (display " " port)
+                     (pp arg 0))
+                   args)
+         (display ")" port))
+        
+        (('if test then else)
+         (format port "(if")
+         (newline port)
+         (pp test (+ indent 2))
+         (newline port)
+         (pp then (+ indent 2))
+         (newline port)
+         (pp else (+ indent 2))
+         (display (spaces indent) port)
+         (display ")" port))
+        
+        (('const val)
+         (format port "(const ~s)" val))
+        
+        (('let bindings body)
+         (format port "(let ~s" bindings)
+         (newline port)
+         (pp body (+ indent 2))
+         (display (spaces indent) port)
+         (display ")" port))
+        
+        (('begin . exps)
+         (format port "(begin")
+         (for-each (lambda (exp)
+                     (newline port)
+                     (pp exp (+ indent 2)))
+                   exps)
+         (display (spaces indent) port)
+         (display ")" port))
+        
+        (_
+         (pretty-print obj port))))
+     
+     ;; Handle symbols
+     ((symbol? obj)
+      (display obj port))
+     
+     ;; Fallback
+     (else
+      (pretty-print obj port))))
   
   (pp cps indent)
   (newline port))
 
 (define* (pretty-print-continuation k cps #:key (port (current-output-port)))
-  "Pretty-print continuation K from CPS."
-  (let ((cont (find-continuation-in-cps k cps)))
-    (if cont
-        (cps-pretty-print cont #:port port)
-        (format port "Continuation ~a not found~%" k))))
+  "Pretty-print continuation K from CPS (compatibility stub)."
+  (format port "Continuation ~a in:~%" k)
+  (cps-pretty-print cps #:port port #:indent 2))
 
 (define* (pretty-print-expression exp #:key (port (current-output-port)))
   "Pretty-print a CPS expression."
-  (match exp
-    (($ $const val)
-     (format port "(const ~s)" val))
-    (($ $prim name)
-     (format port "(prim ~a)" name))
-    (($ $call proc args)
-     (format port "(call ~a ~s)" proc args))
-    (($ $primcall name args)
-     (format port "(primcall ~a ~s)" name args))
-    (($ $values args)
-     (format port "(values ~s)" args))
-    (_
-     (format port "~s" exp)))
-  (newline port))
-
-(define (find-continuation-in-cps k cps)
-  "Helper to find continuation K in CPS."
-  (match cps
-    (($ $continue k* _ _) 
-     (and (eq? k k*) cps))
-    (($ $kargs _ _ body)
-     (find-continuation-in-cps k body))
-    (($ $kfun _ _ _ _ clause)
-     (and clause (find-continuation-in-cps k clause)))
-    (_ #f)))
+  (cps-pretty-print exp #:port port))

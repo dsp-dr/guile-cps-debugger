@@ -101,8 +101,11 @@ Please ensure your code follows the GNU Guile coding standards and includes appr
 
 *** Version 0.1.0 (Current)
 - [X] Basic project structure
-- [ ] Core CPS inspection functionality
-- [ ] Basic pretty-printing
+- [X] Core CPS inspection functionality
+- [X] Basic pretty-printing
+- [X] Compatibility layer for Guile 2.x/3.x
+- [X] Comprehensive test suite
+- [X] Working examples
 
 *** Version 0.2.0
 - [ ] Step-through debugging
