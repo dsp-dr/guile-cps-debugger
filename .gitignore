@@ -39,3 +39,6 @@ Thumbs.db
 /doc/*.info
 /doc/*.html
 /doc/*.pdf
+
+# Ignore README.md (using README.org instead)
+README.md
