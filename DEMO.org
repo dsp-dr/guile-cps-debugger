@@ -60,9 +60,9 @@ Then use =C-c C-v s= to start session and =C-c C-v b= to execute blocks.
 
 #+RESULTS:
 : trace: |  (factorial-cps 3 #<procedure identity (x)>)
-: trace: |  (factorial-cps 2 #<procedure 84a9aa2a0 at <unknown port>:33:21 (re…>)
-: trace: |  (factorial-cps 1 #<procedure 84ab576a0 at <unknown port>:33:21 (re…>)
-: trace: |  (factorial-cps 0 #<procedure 84155bd40 at <unknown port>:33:21 (re…>)
+: trace: |  (factorial-cps 2 #<procedure 8414acb00 at <unknown port>:212:21 (r…>)
+: trace: |  (factorial-cps 1 #<procedure 8414ac1c0 at <unknown port>:212:21 (r…>)
+: trace: |  (factorial-cps 0 #<procedure 853143840 at <unknown port>:212:21 (r…>)
 : trace: |  (_ 1)
 : trace: |  (_ 1)
 : trace: |  (_ 2)
@@ -71,7 +71,11 @@ Then use =C-c C-v s= to start session and =C-c C-v b= to execute blocks.
 
 ** Setting Breakpoints
 
+- https://www.gnu.org/software/guile/manual/html_node/High_002dLevel-Traps.html
+
 #+BEGIN_SRC scheme :results output
+;; (use-modules (system vm trap-state))
+
 ;; Add trap at procedure call
 (define trap-id 
   (add-trap-at-procedure-call! 
@@ -91,10 +95,10 @@ Then use =C-c C-v s= to start session and =C-c C-v b= to execute blocks.
 
 #+RESULTS:
 : ice-9/boot-9.scm:1676:22: In procedure raise-exception:
-: Unbound variable: add-trap-at-procedure-call!
+: In procedure record-accessor: Wrong type argument (want `<trap-state>'): #<procedure 2d7706877168 at <unknown port>:558:4 (frame)>
 : 
 : Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
-: scheme@(guile-user) [1]> 
+: scheme@(guile-user) [6]> 
 
 ** Inspecting Stack Frames
 
@@ -121,7 +125,7 @@ Then use =C-c C-v s= to start session and =C-c C-v b= to execute blocks.
 #+END_SRC
 
 #+RESULTS:
-: Stack depth: 49
+: Stack depth: 98
 : Frame 0: make-stack
 : Frame 1: inspect-my-stack
 : Frame 2: eval
@@ -160,6 +164,17 @@ Then use =C-c C-v s= to start session and =C-c C-v b= to execute blocks.
 ;; Run the traced version
 (trace-cps-execution 3)
 #+END_SRC
+
+#+RESULTS:
+: → factorial(3)
+:   → factorial(2)
+:     → factorial(1)
+:       → factorial(0)
+:         ← base case: 1
+:       ← continuation: 1 * 1 = 1
+:     ← continuation: 2 * 1 = 2
+:   ← continuation: 3 * 2 = 6
+
 : 
 : Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
 : scheme@(guile-user) [2]> 
@@ -269,6 +284,24 @@ Then use =C-c C-v s= to start session and =C-c C-v b= to execute blocks.
                   i (or (frame-procedure-name frame) "<anonymous>")))))))
 #+END_SRC
 
+#+RESULTS:
+#+begin_example
+Error caught: misc-error
+Arguments: (#f Negative input! () #f)
+
+Stack trace:
+  0: make-stack
+  1: <anonymous>
+  2: eval
+  3: <anonymous>
+  4: %start-stack
+  5: ev
+  6: call-with-switcher-output
+  7: <anonymous>
+  8: with-error-to-port
+  9: <anonymous>
+#+end_example
+
 ** Disassembling CPS Functions
 
 #+BEGIN_SRC scheme :results output
@@ -286,6 +319,13 @@ Then use =C-c C-v s= to start session and =C-c C-v b= to execute blocks.
 (format #t "=== Disassembly of simple-cps ===\n")
 (disassemble simple-cps)
 #+END_SRC
+
+#+RESULTS:
+: ice-9/boot-9.scm:1676:22: In procedure raise-exception:
+: Unbound variable: disassemble
+: 
+: Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
+: scheme@(guile-user) [4]> 
 
 ** REPL Debugging Commands Reference
 
@@ -320,6 +360,38 @@ SYSTEM:
 ,quit (,q)           - Exit debugger/REPL
 ")
 #+END_SRC
+
+#+RESULTS:
+#+begin_example
+
+=== Guile REPL Debugging Commands ===
+
+DEBUGGING:
+,backtrace (,bt)     - Show call stack
+,frame N             - Go to frame N  
+,up / ,down          - Navigate frames
+,locals              - Show local variables
+,error               - Show last error
+
+PROFILING:
+,profile EXPR        - Profile expression
+,trace EXPR          - Trace expression execution
+,time EXPR           - Time execution
+
+INSPECTION:
+,describe OBJ        - Describe object
+,disassemble PROC    - Show bytecode
+
+CODE ANALYSIS:
+,expand EXPR         - Macro expand
+,optimize EXPR       - Show optimized code
+,compile EXPR        - Compile expression
+
+SYSTEM:
+,stat                - Show statistics
+,gc                  - Run garbage collector
+,quit (,q)           - Exit debugger/REPL
+#+end_example
 
 * Advanced CPS Debugging Patterns
 
@@ -359,6 +431,21 @@ SYSTEM:
 (visualize-cps-execution 4)
 #+END_SRC
 
+#+RESULTS:
+#+begin_example
+=== CPS Execution Tree ===
+→ CALL: n=4
+  → CALL: n=3
+    → CALL: n=2
+      → CALL: n=1
+        → CALL: n=0
+          ✓ BASE: returning 1
+        ← CONT: n=1, result=1, computing 1*1
+      ← CONT: n=2, result=1, computing 2*1
+    ← CONT: n=3, result=2, computing 3*2
+  ← CONT: n=4, result=6, computing 4*6
+#+end_example
+
 ** Inspecting Closure Environments
 
 #+BEGIN_SRC scheme :results output
@@ -386,6 +473,22 @@ SYSTEM:
 (inspect-closure-env)
 #+END_SRC
 
+#+RESULTS:
+#+begin_example
+
+First continuation:
+Continuation sees:
+  x: first
+  outer-var: outer
+  middle-var: middle
+
+Second continuation:
+Continuation sees:
+  x: second
+  outer-var: outer
+  middle-var: middle
+#+end_example
+
 * Interactive Exercises
 
 ** Exercise 1: Debug this CPS function
@@ -405,6 +508,8 @@ SYSTEM:
 ;; Test - this will fail, debug it!
 ;; (sum-list-cps '(1 2 "three" 4 5) identity)
 #+END_SRC
+
+#+RESULTS:
 
 ** Exercise 2: Profile and optimize
 
@@ -439,6 +544,13 @@ SYSTEM:
 (time (map-direct (lambda (x) (* x 2)) 
                   test-list))
 #+END_SRC
+
+#+RESULTS:
+: ice-9/boot-9.scm:1676:22: In procedure raise-exception:
+: Unbound variable: time
+: 
+: Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
+: scheme@(guile-user) [5]> 
 
 * Quick Reference Card
 
@@ -477,3 +589,39 @@ SYSTEM:
 ╚════════════════════════════════════════════════════════════╝
 ")
 #+END_SRC
+
+#+RESULTS:
+#+begin_example
+
+╔════════════════════════════════════════════════════════════╗
+║                  GUILE CPS DEBUGGER REFERENCE              ║
+╠════════════════════════════════════════════════════════════╣
+║ EMACS COMMANDS:                                            ║
+║   C-c C-v s    Start Scheme session                        ║
+║   C-c C-v b    Execute buffer                              ║
+║   C-c C-c      Execute block                               ║
+║   C-c C-z      Switch to REPL                              ║
+╟────────────────────────────────────────────────────────────╢
+║ DEBUGGING IN REPL:                                         ║
+║   ,bt          Show backtrace                              ║
+║   ,frame N     Go to frame N                               ║
+║   ,locals      Show local variables                        ║
+║   ,error       Show last error                             ║
+╟────────────────────────────────────────────────────────────╢
+║ TRACING & PROFILING:                                       ║
+║   (trace proc)         Enable tracing                      ║
+║   (untrace proc)       Disable tracing                     ║
+║   ,profile expr        Profile expression                  ║
+║   ,time expr           Time execution                      ║
+╟────────────────────────────────────────────────────────────╢
+║ INSPECTION:                                                ║
+║   ,describe obj        Describe object                     ║
+║   ,inspect obj         Detailed inspection                 ║
+║   ,disassemble proc    Show bytecode                       ║
+╟────────────────────────────────────────────────────────────╢
+║ VM HOOKS:                                                  ║
+║   (vm-trace-level N)   Set trace level                     ║
+║   (vm-apply-hook)      Get apply hook                      ║
+║   (vm-push-continuation-hook)  Continuation hook           ║
+╚════════════════════════════════════════════════════════════╝
+#+end_example
