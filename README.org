@@ -2,6 +2,8 @@
 
 A comprehensive debugger for Guile's CPS (Continuation-Passing Style) intermediate representation.
 
+[[file:demo/cps-debugger-demo.gif]]
+
 ** Overview
 
 The Guile CPS Debugger provides debugging and inspection capabilities for Guile Scheme's CPS intermediate representation. CPS is used internally by Guile's compiler as an intermediate form between high-level Scheme code and low-level bytecode.
