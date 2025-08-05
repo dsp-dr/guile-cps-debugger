@@ -60,9 +60,9 @@ Then use =C-c C-v s= to start session and =C-c C-v b= to execute blocks.
 
 #+RESULTS:
 : trace: |  (factorial-cps 3 #<procedure identity (x)>)
-: trace: |  (factorial-cps 2 #<procedure 8414acb00 at <unknown port>:212:21 (r…>)
-: trace: |  (factorial-cps 1 #<procedure 8414ac1c0 at <unknown port>:212:21 (r…>)
-: trace: |  (factorial-cps 0 #<procedure 853143840 at <unknown port>:212:21 (r…>)
+: trace: |  (factorial-cps 2 #<procedure 84ab9fe20 at <unknown port>:660:21 (r…>)
+: trace: |  (factorial-cps 1 #<procedure 84ab9f4e0 at <unknown port>:660:21 (r…>)
+: trace: |  (factorial-cps 0 #<procedure 847207da0 at <unknown port>:660:21 (r…>)
 : trace: |  (_ 1)
 : trace: |  (_ 1)
 : trace: |  (_ 2)
@@ -95,10 +95,10 @@ Then use =C-c C-v s= to start session and =C-c C-v b= to execute blocks.
 
 #+RESULTS:
 : ice-9/boot-9.scm:1676:22: In procedure raise-exception:
-: In procedure record-accessor: Wrong type argument (want `<trap-state>'): #<procedure 2d7706877168 at <unknown port>:558:4 (frame)>
+: In procedure record-accessor: Wrong type argument (want `<trap-state>'): #<procedure 2d77068d6680 at <unknown port>:683:4 (frame)>
 : 
 : Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
-: scheme@(guile-user) [6]> 
+: scheme@(guile-user) [9]> 
 
 ** Inspecting Stack Frames
 
@@ -125,7 +125,7 @@ Then use =C-c C-v s= to start session and =C-c C-v b= to execute blocks.
 #+END_SRC
 
 #+RESULTS:
-: Stack depth: 98
+: Stack depth: 250
 : Frame 0: make-stack
 : Frame 1: inspect-my-stack
 : Frame 2: eval
@@ -305,19 +305,28 @@ Stack trace:
 ** Disassembling CPS Functions
 
 #+BEGIN_SRC scheme :results output
-;; Compile and disassemble a CPS function
+;; Compile and inspect a CPS function
 (use-modules (system base compile)
-             (language tree-il)
-             (system vm disassembler))
+             (system vm program))
 
 ;; Simple CPS function
 (define simple-cps
   (lambda (x k)
     (k (+ x 1))))
 
-;; Disassemble it
-(format #t "=== Disassembly of simple-cps ===\n")
-(disassemble simple-cps)
+;; Inspect the compiled function
+(format #t "=== Inspection of simple-cps ===\n")
+(format #t "Procedure: ~a\n" simple-cps)
+(format #t "Name: ~a\n" (procedure-name simple-cps))
+(format #t "Arity: ~a\n" (procedure-minimum-arity simple-cps))
+
+;; If it's a program (compiled), show more info
+(when (program? simple-cps)
+  (format #t "Is compiled: yes\n")
+  (format #t "Free variables: ~a\n" (program-free-variables simple-cps)))
+
+;; Note: Use ,disassemble in REPL for bytecode view
+(format #t "\nFor bytecode, use in REPL: ,disassemble simple-cps\n")
 #+END_SRC
 
 #+RESULTS:
@@ -325,7 +334,7 @@ Stack trace:
 : Unbound variable: disassemble
 : 
 : Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
-: scheme@(guile-user) [4]> 
+: scheme@(guile-user) [10]> 
 
 ** REPL Debugging Commands Reference
 
@@ -536,13 +545,19 @@ Continuation sees:
 (format #t "Testing with list of ~a elements\n" (length test-list))
 
 ;; CPS version with CPS function
-(time (map-cps (lambda (x k) (k (* x 2))) 
-               test-list 
-               identity))
+(let ((start (current-time)))
+  (map-cps (lambda (x k) (k (* x 2))) 
+           test-list 
+           identity)
+  (format #t "CPS version took: ~a seconds\n" 
+          (- (current-time) start)))
 
 ;; Direct version
-(time (map-direct (lambda (x) (* x 2)) 
-                  test-list))
+(let ((start (current-time)))
+  (map-direct (lambda (x) (* x 2)) 
+              test-list)
+  (format #t "Direct version took: ~a seconds\n"
+          (- (current-time) start)))
 #+END_SRC
 
 #+RESULTS:
@@ -550,7 +565,7 @@ Continuation sees:
 : Unbound variable: time
 : 
 : Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
-: scheme@(guile-user) [5]> 
+: scheme@(guile-user) [11]> 
 
 * Quick Reference Card
 
