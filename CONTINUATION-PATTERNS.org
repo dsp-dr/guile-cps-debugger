@@ -1,0 +1,453 @@
+#+TITLE: Advanced Continuation Patterns in CPS
+#+PROPERTY: header-args:scheme :session *guile-cps* :results output
+#+STARTUP: showeverything
+
+* Introduction
+
+This document explores advanced patterns for using continuations in CPS (Continuation-Passing Style).
+The key insight: *any function can be a continuation* - it just receives the computed result and decides what to do with it.
+
+* Setup
+
+#+BEGIN_SRC scheme :results silent
+(use-modules (ice-9 format)
+             (srfi srfi-1))
+
+;; Define our CPS functions
+(define (fibonacci-cps n k)
+  (if (< n 2)
+      (k n)
+      (fibonacci-cps (- n 1)
+                     (lambda (fib-n-1)
+                       (fibonacci-cps (- n 2)
+                                      (lambda (fib-n-2)
+                                        (k (+ fib-n-1 fib-n-2))))))))
+
+(define (factorial-cps n k)
+  (if (= n 0)
+      (k 1)
+      (factorial-cps (- n 1)
+                     (lambda (result)
+                       (k (* n result))))))
+
+(define (identity x) x)
+#+END_SRC
+
+* Simple Transformation Continuations
+
+The continuation can transform the result in any way:
+
+#+BEGIN_SRC scheme
+;; Add a constant
+(define (add-10 x) (+ x 10))
+(format #t "fib(5) = ~a\n" (fibonacci-cps 5 identity))
+(format #t "fib(5) + 10 = ~a\n" (fibonacci-cps 5 add-10))
+
+;; Create parameterized continuations
+(define (make-multiplier n)
+  (lambda (x) (* x n)))
+
+(format #t "fib(6) * 100 = ~a\n" 
+        (fibonacci-cps 6 (make-multiplier 100)))
+#+END_SRC
+
+#+RESULTS:
+: fib(5) = 5
+: fib(5) + 10 = 15
+: fib(6) * 100 = 800
+
+* Continuation Composition
+
+Continuations can be composed like regular functions:
+
+#+BEGIN_SRC scheme
+(define (compose-cont f g)
+  "Compose continuations: (f ∘ g)(x) = f(g(x))"
+  (lambda (x) (f (g x))))
+
+(define (double x) (* 2 x))
+(define (square x) (* x x))
+(define (add-5 x) (+ x 5))
+
+;; Create a pipeline: fib -> double -> add-5 -> square
+(define pipeline 
+  (compose-cont square 
+                (compose-cont add-5 double)))
+
+(format #t "fib(5) -> *2 -> +5 -> square = ~a\n"
+        (fibonacci-cps 5 pipeline))
+(format #t "Breakdown: 5 -> 10 -> 15 -> 225\n")
+#+END_SRC
+
+#+RESULTS:
+: fib(5) -> *2 -> +5 -> square = 225
+: Breakdown: 5 -> 10 -> 15 -> 225
+
+* Accumulator Patterns
+
+** Stateful Accumulation
+
+#+BEGIN_SRC scheme
+(define sum-accumulator 0)
+
+(define (sum-cont x)
+  (set! sum-accumulator (+ sum-accumulator x))
+  (format #t "  Added ~a, total: ~a\n" x sum-accumulator)
+  sum-accumulator)
+
+(display "Accumulating fibonacci values:\n")
+(fibonacci-cps 3 sum-cont)
+(fibonacci-cps 4 sum-cont)
+(fibonacci-cps 5 sum-cont)
+(format #t "Final sum: ~a\n" sum-accumulator)
+#+END_SRC
+
+#+RESULTS:
+: Accumulating fibonacci values:
+:   Added 2, total: 2
+:   Added 3, total: 5
+:   Added 5, total: 10
+: Final sum: 10
+
+** Pure Functional Accumulation
+
+#+BEGIN_SRC scheme
+(define (sum-first-n-fibs n)
+  "Sum first n Fibonacci numbers (pure functional)"
+  (define (loop i acc k)
+    (if (>= i n)
+        (k acc)
+        (fibonacci-cps i
+                       (lambda (fib-i)
+                         (loop (+ i 1) 
+                               (+ acc fib-i)
+                               k)))))
+  (loop 0 0 identity))
+
+(format #t "Sum of first 8 Fibonacci numbers: ~a\n"
+        (sum-first-n-fibs 8))
+(format #t "(0+1+1+2+3+5+8+13 = 33)\n")
+#+END_SRC
+
+#+RESULTS:
+: Sum of first 8 Fibonacci numbers: 33
+: (0+1+1+2+3+5+8+13 = 33)
+
+* Conditional Continuations
+
+Continuations can make decisions based on the value:
+
+#+BEGIN_SRC scheme
+(define (classify-parity x)
+  (if (even? x)
+      (cons 'even x)
+      (cons 'odd x)))
+
+(format #t "fib(6): ~a\n" (fibonacci-cps 6 classify-parity))
+(format #t "fib(7): ~a\n" (fibonacci-cps 7 classify-parity))
+
+;; Threshold checking
+(define (threshold-check limit)
+  (lambda (x)
+    (if (> x limit)
+        (format #f "HIGH: ~a (exceeds ~a)" x limit)
+        (format #f "LOW: ~a (≤ ~a)" x limit))))
+
+(format #t "fib(10): ~a\n"
+        (fibonacci-cps 10 (threshold-check 50)))
+#+END_SRC
+
+#+RESULTS:
+: fib(6): (even . 8)
+: fib(7): (odd . 13)
+: fib(10): HIGH: 55 (exceeds 50)
+
+* Combining Multiple CPS Computations
+
+#+BEGIN_SRC scheme
+(define (sum-two-fibs n1 n2)
+  "Add two Fibonacci numbers using nested CPS"
+  (fibonacci-cps n1
+                 (lambda (fib-n1)
+                   (fibonacci-cps n2
+                                  (lambda (fib-n2)
+                                    (+ fib-n1 fib-n2))))))
+
+(define (product-three-facts n1 n2 n3)
+  "Multiply three factorials"
+  (factorial-cps n1
+                 (lambda (f1)
+                   (factorial-cps n2
+                                  (lambda (f2)
+                                    (factorial-cps n3
+                                                   (lambda (f3)
+                                                     (* f1 f2 f3))))))))
+
+(format #t "fib(5) + fib(7) = ~a\n" (sum-two-fibs 5 7))
+(format #t "3! * 4! * 5! = ~a\n" (product-three-facts 3 4 5))
+#+END_SRC
+
+#+RESULTS:
+: fib(5) + fib(7) = 18
+: 3! * 4! * 5! = 17280
+
+* Tracing and Debugging Continuations
+
+#+BEGIN_SRC scheme
+(define (make-tracer name)
+  "Create a tracing continuation"
+  (lambda (x)
+    (format #t "[~a] Received: ~a\n" name x)
+    x))
+
+(define traced-pipeline
+  (compose-cont (make-tracer "stage-3")
+                (compose-cont square
+                              (compose-cont (make-tracer "stage-2")
+                                          (compose-cont add-5
+                                                       (make-tracer "stage-1"))))))
+
+(display "Tracing pipeline execution:\n")
+(fibonacci-cps 4 traced-pipeline)
+#+END_SRC
+
+#+RESULTS:
+: Tracing pipeline execution:
+: [stage-1] Received: 3
+: [stage-2] Received: 8
+: [stage-3] Received: 64
+
+* Collection Continuations
+
+#+BEGIN_SRC scheme
+(define results '())
+
+(define (collect-stats x)
+  "Collect various statistics about the value"
+  (let ((stats `((value . ,x)
+                 (double . ,(* 2 x))
+                 (square . ,(* x x))
+                 (even? . ,(even? x))
+                 (digits . ,(string-length (number->string x))))))
+    (set! results (cons stats results))
+    stats))
+
+(display "Collecting statistics:\n")
+(fibonacci-cps 8 collect-stats)
+(factorial-cps 5 collect-stats)
+
+(display "\nCollected data:\n")
+(for-each (lambda (stat)
+            (format #t "~a\n" stat))
+          (reverse results))
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+Collecting statistics:
+
+Collected data:
+((value . 21) (double . 42) (square . 441) (even? . #f) (digits . 2))
+((value . 120) (double . 240) (square . 14400) (even? . #t) (digits . 3))
+#+end_example
+
+* Error Handling Continuations
+
+#+BEGIN_SRC scheme
+(define (safe-operation op error-msg)
+  (lambda (x)
+    (catch #t
+      (lambda () (op x))
+      (lambda (key . args)
+        (format #f "ERROR in ~a: ~a (input: ~a)" 
+                error-msg key x)))))
+
+(define (reciprocal x)
+  (if (= x 0)
+      (error "Division by zero")
+      (/ 1 x)))
+
+(define safe-reciprocal 
+  (safe-operation reciprocal "reciprocal"))
+
+(format #t "1/fib(5) = ~a\n" 
+        (fibonacci-cps 5 safe-reciprocal))
+(format #t "1/fib(0) = ~a\n" 
+        (fibonacci-cps 0 safe-reciprocal))
+#+END_SRC
+
+#+RESULTS:
+: 1/fib(5) = 1/5
+: 1/fib(0) = ERROR in reciprocal: misc-error (input: 0)
+
+* Memoization Pattern
+
+#+BEGIN_SRC scheme
+(define memo-table (make-hash-table))
+
+(define (memoizing-cont key)
+  (lambda (value)
+    (hash-set! memo-table key value)
+    (format #t "Memoized: ~a => ~a\n" key value)
+    value))
+
+(fibonacci-cps 10 (memoizing-cont 'fib-10))
+(factorial-cps 7 (memoizing-cont 'fact-7))
+
+(display "\nMemo table:\n")
+(hash-for-each (lambda (k v)
+                 (format #t "  ~a: ~a\n" k v))
+               memo-table)
+#+END_SRC
+
+#+RESULTS:
+: Memoized: fib-10 => 55
+: Memoized: fact-7 => 5040
+: 
+: Memo table:
+:   fact-7: 5040
+:   fib-10: 55
+
+* Visualization of Continuation Flow
+
+#+BEGIN_SRC scheme :results value verbatim
+(define (generate-continuation-diagram)
+  "Generate Mermaid diagram showing continuation flexibility"
+  (string-append
+   "graph TD\n"
+   "    INPUT[\"CPS Function<br/>(e.g., fibonacci-cps)\"]:::cps\n"
+   "    CONT[\"Continuation k\"]:::cont\n"
+   "    \n"
+   "    subgraph \"Continuation Options\"\n"
+   "        T1[\"Transform<br/>(+, *, etc.)\"]:::transform\n"
+   "        T2[\"Accumulate<br/>(sum, collect)\"]:::accumulate\n"
+   "        T3[\"Decide<br/>(if, cond)\"]:::decide\n"
+   "        T4[\"Combine<br/>(nest CPS)\"]:::combine\n"
+   "        T5[\"Side Effect<br/>(log, memo)\"]:::effect\n"
+   "        T6[\"Error Handle<br/>(catch)\"]:::error\n"
+   "    end\n"
+   "    \n"
+   "    OUTPUT[\"Final Result\"]:::result\n"
+   "    \n"
+   "    INPUT --> CONT\n"
+   "    CONT --> T1\n"
+   "    CONT --> T2\n"
+   "    CONT --> T3\n"
+   "    CONT --> T4\n"
+   "    CONT --> T5\n"
+   "    CONT --> T6\n"
+   "    T1 --> OUTPUT\n"
+   "    T2 --> OUTPUT\n"
+   "    T3 --> OUTPUT\n"
+   "    T4 --> OUTPUT\n"
+   "    T5 --> OUTPUT\n"
+   "    T6 --> OUTPUT\n"
+   "    \n"
+   "    classDef cps fill:#f9f,stroke:#333,stroke-width:2px\n"
+   "    classDef cont fill:#ff9,stroke:#333,stroke-width:2px\n"
+   "    classDef transform fill:#9ff,stroke:#333,stroke-width:2px\n"
+   "    classDef accumulate fill:#9f9,stroke:#333,stroke-width:2px\n"
+   "    classDef decide fill:#f99,stroke:#333,stroke-width:2px\n"
+   "    classDef combine fill:#99f,stroke:#333,stroke-width:2px\n"
+   "    classDef effect fill:#fa9,stroke:#333,stroke-width:2px\n"
+   "    classDef error fill:#f66,stroke:#333,stroke-width:2px\n"
+   "    classDef result fill:#6f6,stroke:#333,stroke-width:2px\n"))
+
+(generate-continuation-diagram)
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+graph TD
+    INPUT["CPS Function<br/>(e.g., fibonacci-cps)"]:::cps
+    CONT["Continuation k"]:::cont
+    
+    subgraph "Continuation Options"
+        T1["Transform<br/>(+, *, etc.)"]:::transform
+        T2["Accumulate<br/>(sum, collect)"]:::accumulate
+        T3["Decide<br/>(if, cond)"]:::decide
+        T4["Combine<br/>(nest CPS)"]:::combine
+        T5["Side Effect<br/>(log, memo)"]:::effect
+        T6["Error Handle<br/>(catch)"]:::error
+    end
+    
+    OUTPUT["Final Result"]:::result
+    
+    INPUT --> CONT
+    CONT --> T1
+    CONT --> T2
+    CONT --> T3
+    CONT --> T4
+    CONT --> T5
+    CONT --> T6
+    T1 --> OUTPUT
+    T2 --> OUTPUT
+    T3 --> OUTPUT
+    T4 --> OUTPUT
+    T5 --> OUTPUT
+    T6 --> OUTPUT
+    
+    classDef cps fill:#f9f,stroke:#333,stroke-width:2px
+    classDef cont fill:#ff9,stroke:#333,stroke-width:2px
+    classDef transform fill:#9ff,stroke:#333,stroke-width:2px
+    classDef accumulate fill:#9f9,stroke:#333,stroke-width:2px
+    classDef decide fill:#f99,stroke:#333,stroke-width:2px
+    classDef combine fill:#99f,stroke:#333,stroke-width:2px
+    classDef effect fill:#fa9,stroke:#333,stroke-width:2px
+    classDef error fill:#f66,stroke:#333,stroke-width:2px
+    classDef result fill:#6f6,stroke:#333,stroke-width:2px
+#+end_example
+
+* Key Insights
+
+1. **Continuations are just functions** - Any function that accepts one argument can be a continuation
+2. **Composition is powerful** - Continuations compose naturally, creating pipelines
+3. **State can be managed** - Both stateful and pure functional approaches work
+4. **Error handling is natural** - Continuations can gracefully handle errors
+5. **Debugging is enhanced** - Tracing continuations provides visibility into execution
+6. **Flexibility is unlimited** - The continuation decides what happens to each computed value
+
+* Practical Applications
+
+** Web Request Handler
+#+BEGIN_SRC scheme
+(define (handle-request-cps request process-result)
+  "Process a web request with CPS"
+  ;; Imagine this fetches data asynchronously
+  (fetch-data-cps 
+    (request-id request)
+    (lambda (data)
+      (transform-data-cps
+        data
+        (lambda (transformed)
+          (process-result transformed))))))
+#+END_SRC
+
+** Async Operation Chain
+#+BEGIN_SRC scheme  
+(define (async-pipeline input)
+  (read-file-cps input
+    (lambda (content)
+      (parse-json-cps content
+        (lambda (json)
+          (validate-cps json
+            (lambda (valid-data)
+              (save-to-db-cps valid-data
+                (lambda (result)
+                  (format #t "Pipeline complete: ~a\n" result))))))))))
+#+END_SRC
+
+** Tree Traversal with Custom Actions
+#+BEGIN_SRC scheme
+(define (tree-fold-cps tree combine-fn leaf-fn k)
+  "Fold over a tree with CPS"
+  (if (leaf? tree)
+      (k (leaf-fn tree))
+      (tree-fold-cps (left tree) combine-fn leaf-fn
+        (lambda (left-result)
+          (tree-fold-cps (right tree) combine-fn leaf-fn
+            (lambda (right-result)
+              (k (combine-fn left-result right-result))))))))
+#+END_SRC
+
+The power of CPS is that the continuation gives you complete control over the flow of computation!
