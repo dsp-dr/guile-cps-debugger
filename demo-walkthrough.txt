@@ -1,0 +1,83 @@
+=== MANUAL DEMO WALKTHROUGH ===
+
+To attach to the demo session:
+  tmux attach -t emacs-demo
+
+Once in Emacs with DEMO.org loaded:
+
+1. SETUP (Wait for packages to load ~10 seconds)
+   - Notice keycast should show in mode line
+   - If not visible: C-c d k (enable keycast)
+
+2. START SCHEME SESSION
+   - C-c C-v s (start Scheme session)
+   - Wait for *guile-cps* buffer to appear
+
+3. INITIALIZE CPS DEBUGGER
+   - Navigate to first code block (C-n repeatedly or C-s Initialize)
+   - C-c C-c (execute initialization block)
+   - Should see "CPS debugger modules loaded"
+
+4. BASIC CPS FACTORIAL
+   - C-c d n (next section) or navigate manually
+   - C-c C-c on factorial definition
+   - Should see "CPS factorial defined"
+
+5. TRACING DEMONSTRATION
+   - Navigate to "Tracing Function Execution"
+   - C-c C-c to run trace
+   - Shows call trace with depth
+
+6. CUSTOM TRACE VISUALIZATION
+   - Navigate to "Trace With Custom Display"
+   - C-c C-c to see arrow visualization
+   - Shows → and ← for calls/returns
+
+7. STACK INSPECTION
+   - Navigate to "Inspecting Stack Frames"
+   - C-c C-c to inspect stack
+   - Shows frame information
+
+8. MEMORY ANALYSIS
+   - Navigate to "Memory and Continuation Analysis"
+   - C-c C-c to analyze continuations
+   - Shows heap statistics
+
+9. ERROR HANDLING
+   - Navigate to "Interactive Debugging Session"
+   - C-c C-c to trigger and catch error
+   - Shows stack trace on error
+
+10. REPL COMMANDS REFERENCE
+    - Navigate to "REPL Debugging Commands Reference"
+    - C-c C-c to display command reference
+    - Shows formatted command table
+
+11. ADVANCED VISUALIZATION
+    - Navigate to "Continuation Visualization"
+    - C-c C-c for tree visualization
+    - Shows nested call structure
+
+12. EXERCISES (Optional)
+    - Navigate to "Interactive Exercises"
+    - Show the CPS sum function
+    - Mention debugging challenges
+
+13. EXIT DEMO
+    - C-x C-c (exit Emacs)
+    - Type "exit" to stop recording
+    - C-b d to detach from tmux
+
+TIPS:
+- Pause between sections (2-3 seconds)
+- Let output fully display before moving
+- Use C-c d + to increase font if needed
+- C-l to recenter screen if needed
+- If REPL gets stuck, use C-c C-c to interrupt
+
+TO CONVERT TO GIF:
+After recording, run:
+  agg demo/emacs-org-demo.cast demo/emacs-org-demo.gif
+  
+Or with custom settings:
+  agg --speed 1.5 --theme monokai demo/emacs-org-demo.cast demo/emacs-org-demo.gif
