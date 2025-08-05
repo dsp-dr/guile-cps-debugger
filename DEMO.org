@@ -1,0 +1,479 @@
+#+TITLE: Guile CPS Debugger - Interactive Demo
+#+PROPERTY: header-args:scheme :session *guile-cps*
+#+STARTUP: showeverything
+
+* Setup
+:PROPERTIES:
+:VISIBILITY: folded
+:END:
+
+Start with: =emacs -q -l cps-debugger.el DEMO.org=
+Then use =C-c C-v s= to start session and =C-c C-v b= to execute blocks.
+
+** Initialize CPS Debugger
+
+#+BEGIN_SRC scheme :results silent
+(use-modules (cps-debugger)
+             (cps-debugger core)
+             (cps-debugger inspector)
+             (cps-debugger pretty)
+             (cps-debugger analysis)
+             (system vm trace)
+             (system vm inspect)
+             (system vm debug))
+#+END_SRC
+
+* Core Guile Debugging Commands
+
+** Basic CPS Example Functions
+
+#+BEGIN_SRC scheme :results output
+;; Define a simple CPS factorial
+(define (factorial-cps n k)
+  (if (= n 0)
+      (k 1)
+      (factorial-cps (- n 1)
+                     (lambda (result)
+                       (k (* n result))))))
+
+;; Identity continuation
+(define (identity x) x)
+
+(display "CPS factorial defined\n")
+#+END_SRC
+
+#+RESULTS:
+: CPS factorial defined
+
+** Tracing Function Execution
+
+#+BEGIN_SRC scheme :results output
+;; Use Guile's built-in tracing
+(use-modules (system vm trace))
+
+;; Trace the function execution
+(call-with-trace 
+  (lambda ()
+    (factorial-cps 3 identity))
+  #:max-indent 10)
+#+END_SRC
+
+#+RESULTS:
+: trace: |  (factorial-cps 3 #<procedure identity (x)>)
+: trace: |  (factorial-cps 2 #<procedure 84a9aa2a0 at <unknown port>:33:21 (re…>)
+: trace: |  (factorial-cps 1 #<procedure 84ab576a0 at <unknown port>:33:21 (re…>)
+: trace: |  (factorial-cps 0 #<procedure 84155bd40 at <unknown port>:33:21 (re…>)
+: trace: |  (_ 1)
+: trace: |  (_ 1)
+: trace: |  (_ 2)
+: trace: |  (identity 6)
+: trace: |  6
+
+** Setting Breakpoints
+
+#+BEGIN_SRC scheme :results output
+;; Add trap at procedure call
+(define trap-id 
+  (add-trap-at-procedure-call! 
+    factorial-cps
+    (lambda (frame)
+      (format #t "=== Breakpoint Hit ===\n")
+      (format #t "Frame: ~a\n" frame)
+      (format #t "Arguments: ~a\n" (frame-arguments frame))
+      #f))) ; Return #f to continue
+
+;; Test the trap
+(factorial-cps 2 identity)
+
+;; Remove trap
+(delete-trap! trap-id)
+#+END_SRC
+
+#+RESULTS:
+: ice-9/boot-9.scm:1676:22: In procedure raise-exception:
+: Unbound variable: add-trap-at-procedure-call!
+: 
+: Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
+: scheme@(guile-user) [1]> 
+
+** Inspecting Stack Frames
+
+#+BEGIN_SRC scheme :results output
+;; Create a function that inspects its own stack
+(define (inspect-my-stack n)
+  (define (helper depth k)
+    (if (= depth 0)
+        (begin
+          ;; Capture and inspect current stack
+          (let ((stack (make-stack #t)))
+            (format #t "Stack depth: ~a\n" (stack-length stack))
+            (do ((i 0 (+ i 1)))
+                ((>= i (min 5 (stack-length stack))))
+              (let ((frame (stack-ref stack i)))
+                (format #t "Frame ~a: ~a\n" 
+                        i (frame-procedure-name frame)))))
+          (k 'done))
+        (helper (- depth 1) 
+                (lambda (x) (k x)))))
+  (helper n identity))
+
+(inspect-my-stack 3)
+#+END_SRC
+
+#+RESULTS:
+: Stack depth: 49
+: Frame 0: make-stack
+: Frame 1: inspect-my-stack
+: Frame 2: eval
+: Frame 3: #f
+: Frame 4: %start-stack
+
+** Trace With Custom Display
+
+#+BEGIN_SRC scheme :results output
+;; Custom tracing for CPS visualization
+(define (trace-cps-execution n)
+  (define call-depth 0)
+  
+  (define (indent)
+    (make-string (* 2 call-depth) #\space))
+  
+  (define (traced-factorial n k)
+    (format #t "~a→ factorial(~a)\n" (indent) n)
+    (set! call-depth (+ call-depth 1))
+    
+    (if (= n 0)
+        (begin
+          (format #t "~a← base case: 1\n" (indent))
+          (set! call-depth (- call-depth 1))
+          (k 1))
+        (traced-factorial 
+          (- n 1)
+          (lambda (result)
+            (format #t "~a← continuation: ~a * ~a = ~a\n" 
+                    (indent) n result (* n result))
+            (set! call-depth (- call-depth 1))
+            (k (* n result))))))
+  
+  (traced-factorial n identity))
+
+;; Run the traced version
+(trace-cps-execution 3)
+#+END_SRC
+: 
+: Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
+: scheme@(guile-user) [2]> 
+
+** Memory and Continuation Analysis
+
+#+BEGIN_SRC scheme :results output
+;; Analyze continuation memory usage
+(define (analyze-continuation-chain depth)
+  (define closures '())
+  
+  (define (build-chain n k)
+    (if (= n 0)
+        (begin
+          (k 'end)
+          closures)
+        (let ((current-k k))
+          (set! closures (cons k closures))
+          (build-chain (- n 1)
+                       (lambda (x)
+                         (k (cons n x)))))))
+  
+  ;; Build chain and analyze
+  (gc) ; Clean before measurement
+  (let ((before (gc-stats)))
+    (build-chain depth identity)
+    (gc)
+    (let ((after (gc-stats)))
+      (format #t "Chain depth: ~a\n" depth)
+      (format #t "Closures created: ~a\n" (length closures))
+      (format #t "Heap growth: ~a bytes\n"
+              (- (assoc-ref after 'heap-size)
+                 (assoc-ref before 'heap-size))))))
+
+(analyze-continuation-chain 10)
+#+END_SRC
+
+#+RESULTS:
+: Chain depth: 10
+: Closures created: 10
+: Heap growth: 0 bytes
+
+** Profiling CPS Execution
+
+#+BEGIN_SRC scheme :results output
+;; Profile CPS vs direct style
+(use-modules (statprof))
+
+;; Direct style factorial
+(define (factorial-direct n)
+  (if (= n 0)
+      1
+      (* n (factorial-direct (- n 1)))))
+
+;; Profile both versions
+(format #t "=== Profiling Direct Style ===\n")
+(statprof 
+  (lambda ()
+    (do ((i 0 (+ i 1)))
+        ((= i 1000))
+      (factorial-direct 10))))
+
+(format #t "\n=== Profiling CPS Style ===\n")
+(statprof
+  (lambda ()
+    (do ((i 0 (+ i 1)))
+        ((= i 1000))
+      (factorial-cps 10 identity))))
+#+END_SRC
+
+#+RESULTS:
+: === Profiling Direct Style ===
+: No samples recorded.
+: 
+: === Profiling CPS Style ===
+: No samples recorded.
+
+** Interactive Debugging Session
+
+#+BEGIN_SRC scheme :results output
+;; Create a buggy CPS function for debugging
+(define (buggy-cps x k)
+  (if (< x 0)
+      (error "Negative input!")
+      (if (= x 0)
+          (k 'zero)
+          (if (= x 1)
+              (k 'one)
+              (buggy-cps (- x 2)
+                         (lambda (result)
+                           (k (list x result))))))))
+
+;; Install error handler
+(catch #t
+  (lambda ()
+    (buggy-cps -1 identity))
+  (lambda (key . args)
+    (format #t "Error caught: ~a\n" key)
+    (format #t "Arguments: ~a\n" args)
+    ;; Inspect the stack at error point
+    (let ((stack (make-stack #t)))
+      (format #t "\nStack trace:\n")
+      (do ((i 0 (+ i 1)))
+          ((>= i (min 10 (stack-length stack))))
+        (let ((frame (stack-ref stack i)))
+          (format #t "  ~a: ~a\n" 
+                  i (or (frame-procedure-name frame) "<anonymous>")))))))
+#+END_SRC
+
+** Disassembling CPS Functions
+
+#+BEGIN_SRC scheme :results output
+;; Compile and disassemble a CPS function
+(use-modules (system base compile)
+             (language tree-il)
+             (system vm disassembler))
+
+;; Simple CPS function
+(define simple-cps
+  (lambda (x k)
+    (k (+ x 1))))
+
+;; Disassemble it
+(format #t "=== Disassembly of simple-cps ===\n")
+(disassemble simple-cps)
+#+END_SRC
+
+** REPL Debugging Commands Reference
+
+#+BEGIN_SRC scheme :results output
+(format #t "
+=== Guile REPL Debugging Commands ===
+
+DEBUGGING:
+,backtrace (,bt)     - Show call stack
+,frame N             - Go to frame N  
+,up / ,down          - Navigate frames
+,locals              - Show local variables
+,error               - Show last error
+
+PROFILING:
+,profile EXPR        - Profile expression
+,trace EXPR          - Trace expression execution
+,time EXPR           - Time execution
+
+INSPECTION:
+,describe OBJ        - Describe object
+,disassemble PROC    - Show bytecode
+
+CODE ANALYSIS:
+,expand EXPR         - Macro expand
+,optimize EXPR       - Show optimized code
+,compile EXPR        - Compile expression
+
+SYSTEM:
+,stat                - Show statistics
+,gc                  - Run garbage collector
+,quit (,q)           - Exit debugger/REPL
+")
+#+END_SRC
+
+* Advanced CPS Debugging Patterns
+
+** Continuation Visualization
+
+#+BEGIN_SRC scheme :results output
+;; Visualize continuation chain graphically
+(define (visualize-cps-execution n)
+  (define indent 0)
+  
+  (define (print-indent)
+    (display (make-string (* 2 indent) #\space)))
+  
+  (define (cps-with-viz n k)
+    (print-indent)
+    (format #t "→ CALL: n=~a\n" n)
+    (set! indent (+ indent 1))
+    
+    (if (= n 0)
+        (begin
+          (print-indent)
+          (format #t "✓ BASE: returning 1\n")
+          (set! indent (- indent 1))
+          (k 1))
+        (cps-with-viz 
+          (- n 1)
+          (lambda (result)
+            (print-indent)
+            (format #t "← CONT: n=~a, result=~a, computing ~a*~a\n" 
+                    n result n result)
+            (set! indent (- indent 1))
+            (k (* n result))))))
+  
+  (format #t "=== CPS Execution Tree ===\n")
+  (cps-with-viz n identity))
+
+(visualize-cps-execution 4)
+#+END_SRC
+
+** Inspecting Closure Environments
+
+#+BEGIN_SRC scheme :results output
+;; Examine what continuations capture
+(define (inspect-closure-env)
+  (define outer-var 'outer)
+  (define middle-var 'middle)
+  
+  (define (make-continuation x)
+    (lambda (k)
+      ;; This continuation captures x, outer-var, middle-var
+      (format #t "Continuation sees:\n")
+      (format #t "  x: ~a\n" x)
+      (format #t "  outer-var: ~a\n" outer-var)
+      (format #t "  middle-var: ~a\n" middle-var)
+      (k x)))
+  
+  (let ((cont1 (make-continuation 'first))
+        (cont2 (make-continuation 'second)))
+    (format #t "\nFirst continuation:\n")
+    (cont1 identity)
+    (format #t "\nSecond continuation:\n")
+    (cont2 identity)))
+
+(inspect-closure-env)
+#+END_SRC
+
+* Interactive Exercises
+
+** Exercise 1: Debug this CPS function
+
+#+BEGIN_SRC scheme :results output
+;; This function has a bug - use debugging to find it
+(define (sum-list-cps lst k)
+  (if (null? lst)
+      (k 0)
+      (sum-list-cps (cdr lst)
+                    (lambda (sum)
+                      (k (+ (car lst) sum))))))
+
+;; Test - this should work
+(sum-list-cps '(1 2 3 4 5) identity)
+
+;; Test - this will fail, debug it!
+;; (sum-list-cps '(1 2 "three" 4 5) identity)
+#+END_SRC
+
+** Exercise 2: Profile and optimize
+
+#+BEGIN_SRC scheme :results output
+;; Compare performance of these two approaches
+(define (map-cps f lst k)
+  (if (null? lst)
+      (k '())
+      (f (car lst)
+         (lambda (head)
+           (map-cps f (cdr lst)
+                    (lambda (tail)
+                      (k (cons head tail))))))))
+
+(define (map-direct f lst)
+  (if (null? lst)
+      '()
+      (cons (f (car lst))
+            (map-direct f (cdr lst)))))
+
+;; Profile both
+(define test-list (iota 100))
+
+(format #t "Testing with list of ~a elements\n" (length test-list))
+
+;; CPS version with CPS function
+(time (map-cps (lambda (x k) (k (* x 2))) 
+               test-list 
+               identity))
+
+;; Direct version
+(time (map-direct (lambda (x) (* x 2)) 
+                  test-list))
+#+END_SRC
+
+* Quick Reference Card
+
+#+BEGIN_SRC scheme :results output
+(format #t "
+╔════════════════════════════════════════════════════════════╗
+║                  GUILE CPS DEBUGGER REFERENCE              ║
+╠════════════════════════════════════════════════════════════╣
+║ EMACS COMMANDS:                                            ║
+║   C-c C-v s    Start Scheme session                        ║
+║   C-c C-v b    Execute buffer                              ║
+║   C-c C-c      Execute block                               ║
+║   C-c C-z      Switch to REPL                              ║
+╟────────────────────────────────────────────────────────────╢
+║ DEBUGGING IN REPL:                                         ║
+║   ,bt          Show backtrace                              ║
+║   ,frame N     Go to frame N                               ║
+║   ,locals      Show local variables                        ║
+║   ,error       Show last error                             ║
+╟────────────────────────────────────────────────────────────╢
+║ TRACING & PROFILING:                                       ║
+║   (trace proc)         Enable tracing                      ║
+║   (untrace proc)       Disable tracing                     ║
+║   ,profile expr        Profile expression                  ║
+║   ,time expr           Time execution                      ║
+╟────────────────────────────────────────────────────────────╢
+║ INSPECTION:                                                ║
+║   ,describe obj        Describe object                     ║
+║   ,inspect obj         Detailed inspection                 ║
+║   ,disassemble proc    Show bytecode                       ║
+╟────────────────────────────────────────────────────────────╢
+║ VM HOOKS:                                                  ║
+║   (vm-trace-level N)   Set trace level                     ║
+║   (vm-apply-hook)      Get apply hook                      ║
+║   (vm-push-continuation-hook)  Continuation hook           ║
+╚════════════════════════════════════════════════════════════╝
+")
+#+END_SRC
