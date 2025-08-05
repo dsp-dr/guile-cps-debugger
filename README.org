@@ -1,0 +1,15 @@
+* Guile CPS Debugger
+
+A debugger for Guile's CPS (Continuation-Passing Style) intermediate representation.
+
+** Overview
+
+This project provides debugging capabilities for Guile Scheme's CPS intermediate representation.
+
+** Installation
+
+** Usage
+
+** Contributing
+
+** License
