@@ -21,6 +21,7 @@
   #:use-module (cps-debugger inspector)
   #:use-module (cps-debugger pretty)
   #:use-module (cps-debugger compat)
+  #:use-module (cps-debugger visualizer)
   #:re-export (cps-debug
                cps-step
                cps-inspect
@@ -28,7 +29,15 @@
                make-cps-debugger
                debugger-step
                debugger-continue
-               debugger-break))
+               debugger-break
+               ;; From visualizer
+               stack->mermaid
+               trace->mermaid
+               continuation-chain->mermaid
+               eval-model->diagram
+               visualize-cps-flow
+               capture-evaluation-trace
+               create-call-graph))
 
 ;;; Commentary:
 ;;;

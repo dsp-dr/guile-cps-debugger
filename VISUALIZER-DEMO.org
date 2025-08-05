@@ -1,0 +1,397 @@
+#+TITLE: Guile Scheme Evaluation Model Visualizer
+#+PROPERTY: header-args:scheme :session *guile-viz* :results output
+#+STARTUP: showeverything
+
+* Introduction
+
+This document demonstrates visualization of the Guile Scheme evaluation model,
+including stack frames, CPS transformations, and execution traces.
+
+* Setup
+
+#+BEGIN_SRC elisp :results silent
+(require 'cps-debugger-visualizer)
+(require 'ob-mermaid)
+#+END_SRC
+
+#+BEGIN_SRC scheme :results silent
+(use-modules (cps-debugger)
+             (cps-debugger visualizer)
+             (system vm debug)
+             (system vm trace))
+#+END_SRC
+
+* Stack Visualization
+
+** Simple Stack Example
+
+#+BEGIN_SRC scheme :visualize t :viz-type stack
+(define (factorial n)
+  (if (= n 0)
+      1
+      (* n (factorial (- n 1)))))
+
+(factorial 5)
+#+END_SRC
+
+** Stack Diagram
+
+#+BEGIN_SRC scheme :results value verbatim
+(define (capture-stack-at-depth n)
+  (if (= n 0)
+      (stack->mermaid (make-stack #t))
+      (capture-stack-at-depth (- n 1))))
+
+(capture-stack-at-depth 3)
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+graph TD
+    classDef frameNode fill:#f9f,stroke:#333,stroke-width:2px
+    classDef currentNode fill:#9f9,stroke:#333,stroke-width:4px
+    F0["capture-stack-at-depth<br/>args: (0)"]:::frameNode
+    F0 --> F1
+    F1["capture-stack-at-depth<br/>args: (1)"]:::frameNode
+    F1 --> F2
+    F2["capture-stack-at-depth<br/>args: (2)"]:::frameNode
+    F2 --> F3
+    F3["capture-stack-at-depth<br/>args: (3)"]:::frameNode
+#+end_example
+
+* CPS Transformation Visualization
+
+** CPS Factorial
+
+#+BEGIN_SRC scheme
+(define (factorial-cps n k)
+  (if (= n 0)
+      (k 1)
+      (factorial-cps (- n 1)
+                     (lambda (result)
+                       (k (* n result))))))
+
+(define (identity x) x)
+#+END_SRC
+
+** Evaluation Model Diagram
+
+#+BEGIN_SRC scheme :results value verbatim
+(eval-model->diagram '(factorial-cps 3 identity))
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+graph TB
+    subgraph "Input"
+        INPUT["(factorial-cps 3 identity)"]
+    end
+    
+    subgraph "CPS Transform"
+        CPS1["Parse AST"]
+        CPS2["α-conversion"]
+        CPS3["CPS transform"]
+        CPS1 --> CPS2
+        CPS2 --> CPS3
+    end
+    
+    subgraph "Evaluation"
+        EVAL1["Create continuations"]
+        EVAL2["Apply functions"]
+        EVAL3["Collect results"]
+        EVAL1 --> EVAL2
+        EVAL2 --> EVAL3
+    end
+    
+    subgraph "Result"
+        RESULT["output"]
+    end
+    
+    INPUT --> CPS1
+    CPS3 --> EVAL1
+    EVAL3 --> RESULT
+#+end_example
+
+** Continuation Chain Visualization
+
+#+BEGIN_SRC scheme :results output
+(define (trace-continuations n k)
+  (format #t "Creating continuation at depth ~a\n" n)
+  (if (= n 0)
+      (k 'done)
+      (trace-continuations 
+        (- n 1)
+        (lambda (result)
+          (format #t "Applying continuation: depth ~a, result ~a\n" n result)
+          (k (cons n result))))))
+
+(trace-continuations 3 identity)
+#+END_SRC
+
+#+RESULTS:
+: Creating continuation at depth 3
+: Creating continuation at depth 2
+: Creating continuation at depth 1
+: Creating continuation at depth 0
+: Applying continuation: depth 1, result done
+: Applying continuation: depth 2, result (1 . done)
+: Applying continuation: depth 3, result (2 1 . done)
+
+* Trace Visualization
+
+** Function Tracing with Diagram
+
+#+BEGIN_SRC scheme :results value verbatim
+(define trace-output
+  (call-with-output-string
+    (lambda (port)
+      (parameterize ((current-output-port port))
+        (call-with-trace
+          (lambda ()
+            (factorial-cps 2 identity))
+          #:calls? #t
+          #:width 80)))))
+
+;; Convert to Mermaid sequence diagram
+(trace->mermaid trace-output)
+#+END_SRC
+
+* Live Evaluation Monitoring
+
+** Interactive Stack Monitor
+
+To start live monitoring in Emacs:
+- =C-c v m= - Start monitor
+- =C-c v M= - Stop monitor
+
+#+BEGIN_SRC elisp :results silent
+;; Start stack monitor in separate buffer
+(cps-debugger-start-monitor)
+#+END_SRC
+
+** Capturing Evaluation Trace
+
+#+BEGIN_SRC scheme :results output
+(define (monitored-eval expr)
+  (let ((trace-data (capture-evaluation-trace 
+                      (lambda () (eval expr (current-module))))))
+    (format #t "Result: ~a\n" (assoc-ref trace-data 'result))
+    (format #t "Duration: ~a\n" (assoc-ref trace-data 'duration))
+    (format #t "Trace events: ~a\n" (length (assoc-ref trace-data 'trace)))))
+
+(monitored-eval '(+ 1 2 3))
+#+END_SRC
+
+* Complex Example: Mutual Recursion
+
+** Even/Odd with CPS
+
+#+BEGIN_SRC scheme
+(define (even-cps? n k)
+  (if (= n 0)
+      (k #t)
+      (odd-cps? (- n 1) k)))
+
+(define (odd-cps? n k)
+  (if (= n 0)
+      (k #f)
+      (even-cps? (- n 1) k)))
+#+END_SRC
+
+** Visualize Mutual Recursion
+
+#+BEGIN_SRC scheme :results value verbatim
+;; Create a custom diagram for mutual recursion
+(string-append
+  "graph LR\n"
+  "    even-cps?[\"even-cps?<br/>checks n=0\"]\n"
+  "    odd-cps?[\"odd-cps?<br/>checks n=0\"]\n"
+  "    cont[\"continuation k\"]\n"
+  "    result[\"result\"]\n"
+  "    \n"
+  "    even-cps? -->|n≠0| odd-cps?\n"
+  "    odd-cps? -->|n≠0| even-cps?\n"
+  "    even-cps? -->|n=0| cont\n"
+  "    odd-cps? -->|n=0| cont\n"
+  "    cont --> result\n"
+  "    \n"
+  "    classDef cpsNode fill:#faa,stroke:#333,stroke-width:2px\n"
+  "    classDef contNode fill:#afa,stroke:#333,stroke-width:2px\n"
+  "    class even-cps?,odd-cps? cpsNode\n"
+  "    class cont contNode\n")
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+graph LR
+    even-cps?["even-cps?<br/>checks n=0"]
+    odd-cps?["odd-cps?<br/>checks n=0"]
+    cont["continuation k"]
+    result["result"]
+    
+    even-cps? -->|n≠0| odd-cps?
+    odd-cps? -->|n≠0| even-cps?
+    even-cps? -->|n=0| cont
+    odd-cps? -->|n=0| cont
+    cont --> result
+    
+    classDef cpsNode fill:#faa,stroke:#333,stroke-width:2px
+    classDef contNode fill:#afa,stroke:#333,stroke-width:2px
+    class even-cps?,odd-cps? cpsNode
+    class cont contNode
+#+end_example
+
+* Call Graph Generation
+
+** Generate Call Graph
+
+#+BEGIN_SRC scheme :results value verbatim
+(define (simple-call-graph)
+  (string-append
+   "digraph CallGraph {\n"
+   "    rankdir=LR;\n"
+   "    node [shape=box];\n"
+   "    \n"
+   "    \"main\" -> \"factorial-cps\";\n"
+   "    \"factorial-cps\" -> \"factorial-cps\" [label=\"recursive\"];\n"
+   "    \"factorial-cps\" -> \"continuation\";\n"
+   "    \"continuation\" -> \"*\";\n"
+   "    \"continuation\" -> \"k\";\n"
+   "}\n"))
+
+(simple-call-graph)
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+digraph CallGraph {
+    rankdir=LR;
+    node [shape=box];
+    
+    "main" -> "factorial-cps";
+    "factorial-cps" -> "factorial-cps" [label="recursive"];
+    "factorial-cps" -> "continuation";
+    "continuation" -> "*";
+    "continuation" -> "k";
+}
+#+end_example
+
+* Memory Analysis Visualization
+
+** Continuation Memory Usage
+
+#+BEGIN_SRC scheme :results output
+(define (analyze-continuation-memory max-depth)
+  (define closures '())
+  
+  (define (build-chain n k)
+    (if (= n 0)
+        (begin
+          (k 'end)
+          (format #t "Created ~a continuations\n" (length closures)))
+        (let ((current-k k))
+          (set! closures (cons k closures))
+          (build-chain (- n 1)
+                       (lambda (x)
+                         (k (cons n x)))))))
+  
+  (gc) ; Clean before measurement
+  (let ((before (gc-stats)))
+    (build-chain max-depth identity)
+    (gc)
+    (let ((after (gc-stats)))
+      (format #t "Heap growth: ~a bytes\n"
+              (- (assoc-ref after 'heap-size)
+                 (assoc-ref before 'heap-size))))))
+
+(analyze-continuation-memory 10)
+#+END_SRC
+
+#+RESULTS:
+: Created 10 continuations
+: Heap growth: 0 bytes
+
+* Export Options
+
+** Export to Various Formats
+
+This document can be exported to:
+- HTML with embedded Mermaid diagrams: =C-c C-e h h=
+- PDF via LaTeX: =C-c C-e l p=
+- Markdown: =C-c C-e m m=
+
+** Mermaid Rendering
+
+To render Mermaid diagrams:
+
+#+BEGIN_SRC bash :results silent
+# Install mermaid-cli
+npm install -g @mermaid-js/mermaid-cli
+
+# Convert to SVG
+mmdc -i diagram.mmd -o diagram.svg
+
+# Convert to PNG
+mmdc -i diagram.mmd -o diagram.png
+#+END_SRC
+
+* Key Bindings Reference
+
+| Key       | Command                         | Description                    |
+|-----------+---------------------------------+--------------------------------|
+| C-c v s   | cps-debugger-visualize-stack    | Visualize current stack        |
+| C-c v r   | cps-debugger-visualize-region   | Visualize selected region      |
+| C-c v t   | cps-debugger-trace-function     | Trace and visualize function   |
+| C-c v m   | cps-debugger-start-monitor      | Start live stack monitor       |
+| C-c v M   | cps-debugger-stop-monitor       | Stop live stack monitor        |
+| C-c v e   | cps-debugger-export-visualization | Export visualization         |
+
+* Tips and Tricks
+
+** Custom Visualization Parameters
+
+#+BEGIN_SRC scheme :visualize t :viz-type cps-flow :format mermaid
+;; Add custom parameters to control visualization
+(factorial-cps 3 identity)
+#+END_SRC
+
+** Combining with GDB
+
+For low-level debugging, combine with GDB:
+
+#+BEGIN_SRC bash
+gdb guile
+(gdb) run -l script.scm
+(gdb) break scm_i_call_with_continuation
+(gdb) commands
+> gscm-print $rdi
+> continue
+> end
+#+END_SRC
+
+** Performance Profiling with Visualization
+
+#+BEGIN_SRC scheme :results output
+(use-modules (statprof))
+
+(statprof-reset 0 50000 #t)
+(statprof-start)
+
+(factorial-cps 100 identity)
+
+(statprof-stop)
+(statprof-display)
+#+END_SRC
+
+* Conclusion
+
+This visualization system provides:
+
+1. **Real-time stack visualization** during execution
+2. **CPS transformation diagrams** showing continuation flow
+3. **Interactive debugging** with visual feedback
+4. **Export capabilities** to various formats
+5. **Integration** with org-mode literate programming
+
+The combination of Guile's debugging capabilities with Emacs visualization
+creates a powerful environment for understanding the Scheme evaluation model.

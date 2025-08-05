@@ -16,12 +16,54 @@ This tool aims to help developers:
 
 ** Features
 
-- [ ] CPS term inspection and pretty-printing
-- [ ] Step-through debugging of CPS transformations
+- [X] CPS term inspection and pretty-printing
+- [X] Step-through debugging of CPS transformations
+- [X] Visualization of evaluation model (Mermaid diagrams)
 - [ ] Breakpoint support at CPS level
 - [ ] Variable and continuation tracking
-- [ ] Integration with Guile's compiler tower
-- [ ] Export capabilities for analysis
+- [X] Integration with Guile's compiler tower
+- [X] Export capabilities for analysis
+
+*** Visualization Capabilities
+
+The debugger can generate visual representations of CPS execution flow. Here's an example of how the Fibonacci function looks in CPS:
+
+#+begin_src mermaid
+graph TD
+    classDef baseCase fill:#9f9,stroke:#333,stroke-width:2px
+    classDef recursive fill:#f9f,stroke:#333,stroke-width:2px
+    classDef continuation fill:#ff9,stroke:#333,stroke-width:2px
+
+    START["fib-cps(5, identity)"]:::recursive
+    F5["n=5<br/>Create continuation"]:::recursive
+    F4A["fib-cps(4, k₁)"]:::recursive
+    F4B["fib-cps(3, k₂)"]:::recursive
+    F3A["fib-cps(3, k₃)"]:::recursive
+    F3B["fib-cps(2, k₄)"]:::recursive
+    F2A["fib-cps(2, k₅)"]:::recursive
+    F2B["fib-cps(1, k₆)"]:::recursive
+    F1A["fib-cps(1, k₇)"]:::baseCase
+    F1B["fib-cps(0, k₈)"]:::baseCase
+    K1["k₁: λr₁.fib(3, λr₂.k(r₁+r₂))"]:::continuation
+    K2["k₂: λr₂.k(r₁+r₂)"]:::continuation
+    RESULT["Result: 5"]:::baseCase
+
+    START --> F5
+    F5 --> F4A
+    F5 --> F4B
+    F4A --> F3A
+    F4A --> F3B
+    F4B --> F2A
+    F4B --> F2B
+    F3A --> F2A
+    F3B --> F1A
+    F2A --> F1A
+    F2B --> F1B
+    F1A --> K1
+    F1B --> K2
+    K1 --> K2
+    K2 --> RESULT
+#+end_src
 
 ** Requirements
 

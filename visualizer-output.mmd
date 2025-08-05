@@ -1,0 +1,193 @@
+=== Generating Mermaid Diagrams for CPS Functions ===
+
+=== Fibonacci CPS Flow ===
+graph TD
+    classDef baseCase fill:#9f9,stroke:#333,stroke-width:2px
+    classDef recursive fill:#f9f,stroke:#333,stroke-width:2px
+    classDef continuation fill:#ff9,stroke:#333,stroke-width:2px
+
+    START["fib-cps(5, identity)"]:::recursive
+    F5["n=5<br/>Create continuation"]:::recursive
+    F4A["fib-cps(4, k₁)"]:::recursive
+    F4B["fib-cps(3, k₂)"]:::recursive
+    F3A["fib-cps(3, k₃)"]:::recursive
+    F3B["fib-cps(2, k₄)"]:::recursive
+    F2A["fib-cps(2, k₅)"]:::recursive
+    F2B["fib-cps(1, k₆)"]:::recursive
+    F1A["fib-cps(1, k₇)"]:::baseCase
+    F1B["fib-cps(0, k₈)"]:::baseCase
+    K1["k₁: λr₁.fib(3, λr₂.k(r₁+r₂))"]:::continuation
+    K2["k₂: λr₂.k(r₁+r₂)"]:::continuation
+    RESULT["Result: 5"]:::baseCase
+
+    START --> F5
+    F5 --> F4A
+    F5 --> F4B
+    F4A --> F3A
+    F4A --> F3B
+    F4B --> F2A
+    F4B --> F2B
+    F3A --> F2A
+    F3B --> F1A
+    F2A --> F1A
+    F2B --> F1B
+    F1A --> K1
+    F1B --> K2
+    K1 --> K2
+    K2 --> RESULT
+
+
+=== GCD CPS Flow ===
+graph TD
+    classDef baseCase fill:#9f9,stroke:#333,stroke-width:2px
+    classDef recursive fill:#f9f,stroke:#333,stroke-width:2px
+    classDef continuation fill:#ff9,stroke:#333,stroke-width:2px
+
+    START["gcd-cps(48, 18, identity)"]:::recursive
+    G1["a=48, b=18<br/>b ≠ 0"]:::recursive
+    G2["gcd-cps(18, 12, k)"]:::recursive
+    G3["a=18, b=12<br/>b ≠ 0"]:::recursive
+    G4["gcd-cps(12, 6, k)"]:::recursive
+    G5["a=12, b=6<br/>b ≠ 0"]:::recursive
+    G6["gcd-cps(6, 0, k)"]:::recursive
+    G7["a=6, b=0<br/>BASE CASE"]:::baseCase
+    CONT["Apply continuation k"]:::continuation
+    RESULT["Result: 6"]:::baseCase
+
+    START --> G1
+    G1 -->|"48 mod 18 = 12"| G2
+    G2 --> G3
+    G3 -->|"18 mod 12 = 6"| G4
+    G4 --> G5
+    G5 -->|"12 mod 6 = 0"| G6
+    G6 --> G7
+    G7 --> CONT
+    CONT --> RESULT
+
+
+=== Product of List CPS Flow ===
+graph TD
+    classDef baseCase fill:#9f9,stroke:#333,stroke-width:2px
+    classDef recursive fill:#f9f,stroke:#333,stroke-width:2px
+    classDef continuation fill:#ff9,stroke:#333,stroke-width:2px
+
+    START["product-cps('(2 3 4), identity)"]:::recursive
+    P1["lst = (2 3 4)<br/>not empty"]:::recursive
+    P2["car = 2<br/>create continuation"]:::recursive
+    P3["product-cps('(3 4), k₁)"]:::recursive
+    P4["lst = (3 4)<br/>not empty"]:::recursive
+    P5["car = 3<br/>create continuation"]:::recursive
+    P6["product-cps('(4), k₂)"]:::recursive
+    P7["lst = (4)<br/>not empty"]:::recursive
+    P8["car = 4<br/>create continuation"]:::recursive
+    P9["product-cps('(), k₃)"]:::recursive
+    P10["lst = ()<br/>BASE CASE: return 1"]:::baseCase
+    K3["k₃: λr.(* 4 r) = (* 4 1) = 4"]:::continuation
+    K2["k₂: λr.(* 3 r) = (* 3 4) = 12"]:::continuation
+    K1["k₁: λr.(* 2 r) = (* 2 12) = 24"]:::continuation
+    RESULT["Result: 24"]:::baseCase
+
+    START --> P1
+    P1 --> P2
+    P2 --> P3
+    P3 --> P4
+    P4 --> P5
+    P5 --> P6
+    P6 --> P7
+    P7 --> P8
+    P8 --> P9
+    P9 --> P10
+    P10 --> K3
+    K3 --> K2
+    K2 --> K1
+    K1 --> RESULT
+
+
+=== Ackermann CPS Flow (A(2,1)) ===
+graph TD
+    classDef baseCase fill:#9f9,stroke:#333,stroke-width:2px
+    classDef recursive fill:#f9f,stroke:#333,stroke-width:2px
+    classDef continuation fill:#ff9,stroke:#333,stroke-width:2px
+
+    START["ack-cps(2, 1, identity)"]:::recursive
+    A21["m=2, n=1<br/>m>0, n>0"]:::recursive
+    A20["ack-cps(2, 0, k₁)"]:::recursive
+    A20R["m=2, n=0<br/>m>0, n=0"]:::recursive
+    A10["ack-cps(1, 1, k₁)"]:::recursive
+    A10R["m=1, n=1<br/>m>0, n>0"]:::recursive
+    A00["ack-cps(1, 0, k₂)"]:::recursive
+    A00R["m=1, n=0<br/>m>0, n=0"]:::recursive
+    A01["ack-cps(0, 1, k₂)"]:::recursive
+    BASE1["m=0<br/>return n+1 = 2"]:::baseCase
+    K2["k₂: λr.ack-cps(0, r, k₁)"]:::continuation
+    A02["ack-cps(0, 2, k₁)"]:::recursive
+    BASE2["m=0<br/>return n+1 = 3"]:::baseCase
+    K1["k₁: λr.ack-cps(1, r, id)"]:::continuation
+    A13["ack-cps(1, 3, identity)"]:::recursive
+    FINAL["Result: 5"]:::baseCase
+
+    START --> A21
+    A21 --> A20
+    A20 --> A20R
+    A20R --> A10
+    A10 --> A10R
+    A10R --> A00
+    A00 --> A00R
+    A00R --> A01
+    A01 --> BASE1
+    BASE1 --> K2
+    K2 --> A02
+    A02 --> BASE2
+    BASE2 --> K1
+    K1 --> A13
+    A13 -->|"simplification"| FINAL
+
+
+=== Tree Sum CPS Flow ===
+graph TD
+    classDef baseCase fill:#9f9,stroke:#333,stroke-width:2px
+    classDef recursive fill:#f9f,stroke:#333,stroke-width:2px
+    classDef continuation fill:#ff9,stroke:#333,stroke-width:2px
+
+    START["tree-sum-cps(tree, identity)"]:::recursive
+    subgraph Tree Structure
+        TREE["Tree:<br/>&nbsp;&nbsp;&nbsp;&nbsp;5<br/>&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;\<br/>3&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;7<br/>/&nbsp;\&nbsp;&nbsp;&nbsp;&nbsp;/&nbsp;\<br/>1&nbsp;&nbsp;4&nbsp;&nbsp;6&nbsp;&nbsp;9"]
+    end
+    NODE5["Node 5<br/>Process branches"]:::recursive
+    LEFT3["tree-sum(left=3, k₁)"]:::recursive
+    NODE3["Node 3<br/>Process branches"]:::recursive
+    LEAF1["Leaf 1<br/>BASE CASE"]:::baseCase
+    LEAF4["Leaf 4<br/>BASE CASE"]:::baseCase
+    K3["k₃: sum left (1) + right (4) = 5"]:::continuation
+    RIGHT7["tree-sum(right=7, k₂)"]:::recursive
+    NODE7["Node 7<br/>Process branches"]:::recursive
+    LEAF6["Leaf 6<br/>BASE CASE"]:::baseCase
+    LEAF9["Leaf 9<br/>BASE CASE"]:::baseCase
+    K7["k₇: sum left (6) + right (9) = 15"]:::continuation
+    KROOT["k_root: 3 + 5 + 7 + 15 = 30"]:::continuation
+    RESULT["Result: 30"]:::baseCase
+
+    START --> TREE
+    TREE --> NODE5
+    NODE5 --> LEFT3
+    NODE5 --> RIGHT7
+    LEFT3 --> NODE3
+    NODE3 --> LEAF1
+    NODE3 --> LEAF4
+    LEAF1 --> K3
+    LEAF4 --> K3
+    RIGHT7 --> NODE7
+    NODE7 --> LEAF6
+    NODE7 --> LEAF9
+    LEAF6 --> K7
+    LEAF9 --> K7
+    K3 --> KROOT
+    K7 --> KROOT
+    KROOT --> RESULT
+
+
+=== Diagrams Generated Successfully ===
+Copy any diagram above into a .mmd file or use in org-mode with:
+#+begin_src mermaid
+[paste diagram here]
+#+end_src

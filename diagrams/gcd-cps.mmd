@@ -1,0 +1,25 @@
+graph TD
+    classDef baseCase fill:#9f9,stroke:#333,stroke-width:2px
+    classDef recursive fill:#f9f,stroke:#333,stroke-width:2px
+    classDef continuation fill:#ff9,stroke:#333,stroke-width:2px
+
+    START["gcd-cps(48, 18, identity)"]:::recursive
+    G1["a=48, b=18<br/>b ≠ 0"]:::recursive
+    G2["gcd-cps(18, 12, k)"]:::recursive
+    G3["a=18, b=12<br/>b ≠ 0"]:::recursive
+    G4["gcd-cps(12, 6, k)"]:::recursive
+    G5["a=12, b=6<br/>b ≠ 0"]:::recursive
+    G6["gcd-cps(6, 0, k)"]:::recursive
+    G7["a=6, b=0<br/>BASE CASE"]:::baseCase
+    CONT["Apply continuation k"]:::continuation
+    RESULT["Result: 6"]:::baseCase
+
+    START --> G1
+    G1 -->|"48 mod 18 = 12"| G2
+    G2 --> G3
+    G3 -->|"18 mod 12 = 6"| G4
+    G4 --> G5
+    G5 -->|"12 mod 6 = 0"| G6
+    G6 --> G7
+    G7 --> CONT
+    CONT --> RESULT
