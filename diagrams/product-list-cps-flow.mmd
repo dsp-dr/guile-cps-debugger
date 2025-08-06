@@ -1,0 +1,35 @@
+graph TD
+    classDef baseCase fill:#9f9,stroke:#333,stroke-width:2px
+    classDef recursive fill:#f9f,stroke:#333,stroke-width:2px
+    classDef continuation fill:#ff9,stroke:#333,stroke-width:2px
+
+    START["product-cps('(2 3 4), identity)"]:::recursive
+    P1["lst = (2 3 4)<br/>not empty"]:::recursive
+    P2["car = 2<br/>create continuation"]:::recursive
+    P3["product-cps('(3 4), k₁)"]:::recursive
+    P4["lst = (3 4)<br/>not empty"]:::recursive
+    P5["car = 3<br/>create continuation"]:::recursive
+    P6["product-cps('(4), k₂)"]:::recursive
+    P7["lst = (4)<br/>not empty"]:::recursive
+    P8["car = 4<br/>create continuation"]:::recursive
+    P9["product-cps('(), k₃)"]:::recursive
+    P10["lst = ()<br/>BASE CASE: return 1"]:::baseCase
+    K3["k₃: λr.(* 4 r) = (* 4 1) = 4"]:::continuation
+    K2["k₂: λr.(* 3 r) = (* 3 4) = 12"]:::continuation
+    K1["k₁: λr.(* 2 r) = (* 2 12) = 24"]:::continuation
+    RESULT["Result: 24"]:::baseCase
+
+    START --> P1
+    P1 --> P2
+    P2 --> P3
+    P3 --> P4
+    P4 --> P5
+    P5 --> P6
+    P6 --> P7
+    P7 --> P8
+    P8 --> P9
+    P9 --> P10
+    P10 --> K3
+    K3 --> K2
+    K2 --> K1
+    K1 --> RESULT

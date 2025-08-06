@@ -1,0 +1,37 @@
+graph TD
+    classDef baseCase fill:#9f9,stroke:#333,stroke-width:2px
+    classDef recursive fill:#f9f,stroke:#333,stroke-width:2px
+    classDef continuation fill:#ff9,stroke:#333,stroke-width:2px
+
+    START["ack-cps(2, 1, identity)"]:::recursive
+    A21["m=2, n=1<br/>m>0, n>0"]:::recursive
+    A20["ack-cps(2, 0, k₁)"]:::recursive
+    A20R["m=2, n=0<br/>m>0, n=0"]:::recursive
+    A10["ack-cps(1, 1, k₁)"]:::recursive
+    A10R["m=1, n=1<br/>m>0, n>0"]:::recursive
+    A00["ack-cps(1, 0, k₂)"]:::recursive
+    A00R["m=1, n=0<br/>m>0, n=0"]:::recursive
+    A01["ack-cps(0, 1, k₂)"]:::recursive
+    BASE1["m=0<br/>return n+1 = 2"]:::baseCase
+    K2["k₂: λr.ack-cps(0, r, k₁)"]:::continuation
+    A02["ack-cps(0, 2, k₁)"]:::recursive
+    BASE2["m=0<br/>return n+1 = 3"]:::baseCase
+    K1["k₁: λr.ack-cps(1, r, id)"]:::continuation
+    A13["ack-cps(1, 3, identity)"]:::recursive
+    FINAL["Result: 5"]:::baseCase
+
+    START --> A21
+    A21 --> A20
+    A20 --> A20R
+    A20R --> A10
+    A10 --> A10R
+    A10R --> A00
+    A00 --> A00R
+    A00R --> A01
+    A01 --> BASE1
+    BASE1 --> K2
+    K2 --> A02
+    A02 --> BASE2
+    BASE2 --> K1
+    K1 --> A13
+    A13 -->|"simplification"| FINAL

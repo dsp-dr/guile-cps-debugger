@@ -1,0 +1,40 @@
+graph TD
+    classDef baseCase fill:#9f9,stroke:#333,stroke-width:2px
+    classDef recursive fill:#f9f,stroke:#333,stroke-width:2px
+    classDef continuation fill:#ff9,stroke:#333,stroke-width:2px
+
+    START["tree-sum-cps(tree, identity)"]:::recursive
+    subgraph Tree Structure
+        TREE["Tree:<br/>&nbsp;&nbsp;&nbsp;&nbsp;5<br/>&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;\<br/>3&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;7<br/>/&nbsp;\&nbsp;&nbsp;&nbsp;&nbsp;/&nbsp;\<br/>1&nbsp;&nbsp;4&nbsp;&nbsp;6&nbsp;&nbsp;9"]
+    end
+    NODE5["Node 5<br/>Process branches"]:::recursive
+    LEFT3["tree-sum(left=3, k₁)"]:::recursive
+    NODE3["Node 3<br/>Process branches"]:::recursive
+    LEAF1["Leaf 1<br/>BASE CASE"]:::baseCase
+    LEAF4["Leaf 4<br/>BASE CASE"]:::baseCase
+    K3["k₃: sum left (1) + right (4) = 5"]:::continuation
+    RIGHT7["tree-sum(right=7, k₂)"]:::recursive
+    NODE7["Node 7<br/>Process branches"]:::recursive
+    LEAF6["Leaf 6<br/>BASE CASE"]:::baseCase
+    LEAF9["Leaf 9<br/>BASE CASE"]:::baseCase
+    K7["k₇: sum left (6) + right (9) = 15"]:::continuation
+    KROOT["k_root: 3 + 5 + 7 + 15 = 30"]:::continuation
+    RESULT["Result: 30"]:::baseCase
+
+    START --> TREE
+    TREE --> NODE5
+    NODE5 --> LEFT3
+    NODE5 --> RIGHT7
+    LEFT3 --> NODE3
+    NODE3 --> LEAF1
+    NODE3 --> LEAF4
+    LEAF1 --> K3
+    LEAF4 --> K3
+    RIGHT7 --> NODE7
+    NODE7 --> LEAF6
+    NODE7 --> LEAF9
+    LEAF6 --> K7
+    LEAF9 --> K7
+    K3 --> KROOT
+    K7 --> KROOT
+    KROOT --> RESULT
