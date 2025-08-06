@@ -84,6 +84,9 @@
          (stepper (make-stepper term)))
     (make-debug-session* id stepper debugger watches '() options)))
 
+;; Session format version for compatibility
+(define *session-format-version* "1.0")
+
 ;; Session counter for unique IDs
 (define *session-counter* 0)
 
@@ -172,12 +175,13 @@
 
 ;; Persistence
 (define (save-session session filename)
-  "Save session state to a file."
+  "Save session state to a file with format version."
   (catch #t
     (lambda ()
       (call-with-output-file filename
         (lambda (port)
-          (write `((id . ,(session-id session))
+          (write `((format-version . ,*session-format-version*)
+                   (id . ,(session-id session))
                    (position . ,(position->list 
                                 (stepper-position (session-stepper session))))
                    (breakpoints . ,(stepper-breakpoints (session-stepper session)))
@@ -200,11 +204,18 @@
                         (lambda () (read port))
                         (lambda args
                           (error "Invalid session file format" filename)))))))
-        ;; Validate session data
+        ;; Validate session data and version
         (unless (and (list? data)
                      (assq 'id data)
                      (assq 'position data))
           (error "Invalid session data structure" filename))
+        
+        ;; Check format version compatibility
+        (let ((file-version (assoc-ref data 'format-version)))
+          (when (and file-version (not (string=? file-version *session-format-version*)))
+            (format (current-error-port) 
+                    "Warning: Session format version mismatch (file: ~a, current: ~a)~%" 
+                    file-version *session-format-version*)))
         
         (let* ((id (assoc-ref data 'id))
                (position-list (assoc-ref data 'position))

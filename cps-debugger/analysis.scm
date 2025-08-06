@@ -18,6 +18,7 @@
 
 (define-module (cps-debugger analysis)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 receive)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-26)  ; cut
   #:use-module (cps-debugger compat)
@@ -63,55 +64,74 @@
            '() cps))
 
 (define (analyze-variables cps)
-  "Analyze variable usage in pseudo-CPS."
-  (let ((defined '())
-        (used '()))
-    
-    (define (visit-def term)
-      (cond
-       ((and (pair? term) (symbol? (car term)))
-        (match term
-          (('lambda-case (req opt rest kw) gensyms body . alt)
-           (set! defined (append req defined))
-           (when opt (set! defined (append opt defined)))
-           (when rest (set! defined (cons rest defined)))
-           (visit-def body)
-           (when (pair? alt) (visit-def (car alt))))
-          (('let bindings body)
-           (set! defined (append (map car bindings) defined))
-           (for-each (lambda (b) (visit-use (cadr b))) bindings)
-           (visit-def body))
-          (_ (visit-use term))))
-       (else (visit-use term))))
-    
-    (define (visit-use term)
-      (cond
-       ((symbol? term)
-        (set! used (cons term used)))
-       ((and (pair? term) (symbol? (car term)))
-        (match term
-          (('call proc . args)
-           (visit-use proc)
-           (for-each visit-use args))
-          (('primcall name . args)
-           (for-each visit-use args))
-          (('if test then else)
-           (visit-use test)
-           (visit-use then)
-           (visit-use else))
-          (('lambda meta body)
-           (visit-def body))
-          (('lambda-case args gensyms body . alt)
-           (visit-def body)
-           (when (pair? alt) (visit-def (car alt))))
-          (('let bindings body)
-           (visit-def term))
-          (('begin . exps)
-           (for-each visit-use exps))
-          (_ #f)))
-       (else #f)))
-    
-    (visit-def cps)
+  "Analyze variable usage in pseudo-CPS using functional approach."
+  (define (collect-variables term defined used in-binding?)
+    "Functionally collect defined and used variables."
+    (match term
+      ;; Symbol - either defined or used based on context
+      ((? symbol? var)
+       (if in-binding?
+           (values (cons var defined) used)
+           (values defined (cons var used))))
+      
+      ;; Lambda case - defines parameters
+      (('lambda-case (req opt rest kw) gensyms body . alt)
+       (let* ((new-defined (append req 
+                                  (or opt '())
+                                  (if rest (list rest) '())
+                                  defined))
+              (body-result (collect-variables body new-defined used #f)))
+         (if (pair? alt)
+             (collect-variables (car alt) 
+                               (car body-result) 
+                               (cdr body-result) 
+                               #f)
+             body-result)))
+      
+      ;; Let bindings - defines variables and evaluates values
+      (('let bindings body)
+       (let loop ((bindings bindings)
+                  (def defined)
+                  (use used))
+         (if (null? bindings)
+             (collect-variables body 
+                               (append (map car bindings) def)
+                               use 
+                               #f)
+             (let ((binding (car bindings)))
+               (receive (new-def new-use)
+                        (collect-variables (cadr binding) def use #f)
+                 (loop (cdr bindings) new-def new-use))))))
+      
+      ;; Call expressions - all arguments are used
+      (('call proc . args)
+       (fold (lambda (arg acc)
+               (receive (def use) 
+                        (collect-variables arg (car acc) (cdr acc) #f)
+                 (cons def use)))
+             (collect-variables proc defined used #f)
+             args))
+      
+      ;; Primitive calls - all arguments are used
+      (('primcall name . args)
+       (fold (lambda (arg acc)
+               (receive (def use)
+                        (collect-variables arg (car acc) (cdr acc) #f)
+                 (cons def use)))
+             (cons defined used)
+             args))
+      
+      ;; Conditionals - test, then, and else are all used
+      (('if test then else)
+       (receive (def1 use1) (collect-variables test defined used #f)
+         (receive (def2 use2) (collect-variables then def1 use1 #f)
+           (collect-variables else def2 use2 #f))))
+      
+      ;; Default case
+      (_ (values defined used))))
+  
+  (receive (defined used) 
+           (collect-variables cps '() '() #f)
     `((defined . ,(delete-duplicates defined))
       (used . ,(delete-duplicates used)))))
 

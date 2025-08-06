@@ -102,17 +102,27 @@
   (vector= = (position-path pos1) (position-path pos2)))
 
 (define (position-navigate term pos)
-  "Navigate to position in TERM."
-  (let loop ((term term)
-             (indices (position-path pos))
-             (idx 0))
-    (if (>= idx (vector-length indices))
-        term
-        (let ((index (vector-ref indices idx)))
-          (cond
-           ((and (pair? term) (list? term))
-            (loop (list-ref term index) indices (+ idx 1)))
-           (else term))))))
+  "Navigate to position in TERM with proper error handling.
+Returns the sub-term at position, or #f if position is invalid."
+  (catch #t
+    (lambda ()
+      (let loop ((term term)
+                 (indices (position-path pos))
+                 (idx 0))
+        (cond
+         ((>= idx (vector-length indices)) term)
+         ((not (pair? term)) 
+          (error 'position-error "Cannot navigate into non-pair term" term))
+         (else
+          (let ((index (vector-ref indices idx)))
+            (if (and (list? term) (< index (length term)))
+                (loop (list-ref term index) indices (+ idx 1))
+                (error 'position-error 
+                       "Index ~a out of bounds for term of length ~a" 
+                       index (length term))))))))
+    (lambda (key . args)
+      ;; Return #f on navigation errors for graceful degradation
+      #f)))
 
 ;; Position cache for frequently accessed positions
 (define-record-type <position-cache>
