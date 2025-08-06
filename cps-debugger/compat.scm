@@ -27,26 +27,28 @@
 
 ;;; Commentary:
 ;;;
-;;; Compatibility layer for different Guile versions.
-;;; Provides fallback functionality when CPS modules are not available.
+;;; Compatibility layer for Guile 3.0+ CPS.
+;;; This module requires Guile 3.0 or later.
 ;;;
 ;;; Code:
 
+;; Ensure we're running on Guile 3.0+
+(unless (and (defined? 'version) 
+             (string>=? (version) "3.0.0"))
+  (error "guile-cps-debugger requires Guile 3.0 or later"))
+
 (define (cps-available?)
-  "Check if CPS modules are available (Guile 3.0+)."
+  "Check if CPS modules are available (should always be true in Guile 3.0+)."
   (false-if-exception
    (resolve-module '(language cps))))
 
 (define (compile-to-cps-compat form)
-  "Compile FORM to CPS if available, otherwise to Tree-IL."
-  (if (cps-available?)
-      ;; Guile 3.0+
-      (compile form #:to 'cps)
-      ;; Guile 2.x - compile to Tree-IL as a fallback
-      (compile form #:to 'tree-il)))
+  "Compile FORM to CPS (Guile 3.0+ required)."
+  ;; Direct compilation to CPS - Guile 3.0+ only
+  (compile form #:to 'cps))
 
 (define (tree-il->pseudo-cps tree-il)
-  "Convert Tree-IL to a pseudo-CPS representation for demonstration."
+  "Convert Tree-IL to a pseudo-CPS representation (Guile 3.0+)."
   (match tree-il
     (($ <lambda> src meta body)
      `(lambda ,meta ,(tree-il->pseudo-cps body)))
@@ -57,8 +59,8 @@
                    ,(tree-il->pseudo-cps body)
                    ,@(if alt (list (tree-il->pseudo-cps alt)) '())))
     
-    (($ <call> src ($ <toplevel-ref> _ (? (lambda (x) (memq x '(+ - * / < > <= >= = eq?))) name)) args)
-     ;; Recognize primitive calls - calls to primitive procedures
+    ;; Guile 3.0+ has native <primcall>
+    (($ <primcall> src name args)
      `(primcall ,name ,@(map tree-il->pseudo-cps args)))
     
     (($ <call> src proc args)
@@ -95,7 +97,7 @@
      `(define ,name ,(tree-il->pseudo-cps exp)))
     
     (($ <seq> src head tail)
-     ;; Guile 2.x uses <seq> instead of <sequence>
+     ;; Guile 3.0+ uses <seq> for sequences
      `(begin ,(tree-il->pseudo-cps head)
              ,(tree-il->pseudo-cps tail)))
     
