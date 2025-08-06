@@ -1,0 +1,40 @@
+Diagram organization and visualization context:
+
+## Original Generation:
+The diagrams in visualizer-output.mmd were generated from test scripts:
+- test-visualizer.scm: Test script for the visualizer module
+- examples/visualizer-examples.scm: Contains diagram generation functions
+
+## Migration Process:
+1. Split monolithic visualizer-output.mmd into individual diagram files
+2. Created diagrams/ directory for better organization
+3. Each algorithm now has its own .mmd file
+4. Added README.md with viewing instructions
+
+## Files Created:
+- diagrams/fibonacci-cps-flow.mmd - Fibonacci sequence CPS transformation
+- diagrams/gcd-cps-flow.mmd - Greatest Common Divisor with tail recursion
+- diagrams/product-list-cps-flow.mmd - List processing with continuations
+- diagrams/ackermann-cps-flow.mmd - Complex Ackermann function (A(2,1))
+- diagrams/tree-sum-cps-flow.mmd - Binary tree traversal in CPS
+- diagrams/README.md - Documentation and viewing instructions
+
+## Cleanup Status:
+✓ Removed visualizer-output.mmd (replaced by individual diagrams)
+✓ test-visualizer.scm - Kept as it's the generation script
+✓ examples/visualizer-examples.scm - Kept as it contains generation functions
+
+## Future Work:
+- Consider updating test-visualizer.scm to output directly to diagrams/
+- Add generation timestamps to diagram files
+- Create automated diagram generation from CPS terms
+
+## Technical Note:
+These diagrams visualize the continuation-passing style transformation,
+showing how functions build up continuations during recursion and apply
+them during the return phase. Color coding indicates:
+- Green: Base cases
+- Purple: Recursive calls
+- Yellow: Continuation applications
+
+The diagrams help developers understand CPS flow and debug transformations.
