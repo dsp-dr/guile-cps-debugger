@@ -14,7 +14,13 @@ SOURCES = \
 	cps-debugger/inspector.scm \
 	cps-debugger/pretty.scm \
 	cps-debugger/repl.scm \
-	cps-debugger/analysis.scm
+	cps-debugger/analysis.scm \
+	cps-debugger/compat.scm \
+	cps-debugger/stepper.scm \
+	cps-debugger/session.scm \
+	cps-debugger/cli.scm \
+	cps-debugger/repl-commands.scm \
+	cps-debugger/visualizer.scm
 
 GOBJECTS = $(SOURCES:%.scm=%.go)
 
