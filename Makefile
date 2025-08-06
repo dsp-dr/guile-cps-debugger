@@ -1,6 +1,8 @@
 # Makefile for guile-cps-debugger
 # Copyright (C) 2025 dsp-dr
 
+# Use gmake on FreeBSD for GNU Make compatibility
+MAKE = gmake
 GUILE = guile
 GUILD = guild
 prefix = /usr/local
@@ -16,11 +18,12 @@ SOURCES = \
 	cps-debugger/repl.scm \
 	cps-debugger/analysis.scm \
 	cps-debugger/compat.scm \
+	cps-debugger/position.scm \
+	cps-debugger/fold.scm \
 	cps-debugger/stepper.scm \
 	cps-debugger/session.scm \
 	cps-debugger/cli.scm \
-	cps-debugger/repl-commands.scm \
-	cps-debugger/visualizer.scm
+	cps-debugger/repl-commands.scm
 
 GOBJECTS = $(SOURCES:%.scm=%.go)
 

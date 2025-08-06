@@ -57,21 +57,18 @@
                    ,(tree-il->pseudo-cps body)
                    ,@(if alt (list (tree-il->pseudo-cps alt)) '())))
     
+    (($ <call> src ($ <toplevel-ref> _ (? (lambda (x) (memq x '(+ - * / < > <= >= = eq?))) name)) args)
+     ;; Recognize primitive calls - calls to primitive procedures
+     `(primcall ,name ,@(map tree-il->pseudo-cps args)))
+    
     (($ <call> src proc args)
      `(call ,(tree-il->pseudo-cps proc)
             ,@(map tree-il->pseudo-cps args)))
-    
-    (($ <primcall> src name args)
-     `(primcall ,name ,@(map tree-il->pseudo-cps args)))
     
     (($ <conditional> src test then else)
      `(if ,(tree-il->pseudo-cps test)
           ,(tree-il->pseudo-cps then)
           ,(tree-il->pseudo-cps else)))
-    
-    (($ <application> src proc args)
-     `(apply ,(tree-il->pseudo-cps proc)
-             ,@(map tree-il->pseudo-cps args)))
     
     (($ <const> src val)
      `(const ,val))
@@ -97,8 +94,10 @@
     (($ <toplevel-define> src name exp)
      `(define ,name ,(tree-il->pseudo-cps exp)))
     
-    (($ <sequence> src exps)
-     `(begin ,@(map tree-il->pseudo-cps exps)))
+    (($ <seq> src head tail)
+     ;; Guile 2.x uses <seq> instead of <sequence>
+     `(begin ,(tree-il->pseudo-cps head)
+             ,(tree-il->pseudo-cps tail)))
     
     (($ <let> src names gensyms vals body)
      `(let ,(map list names (map tree-il->pseudo-cps vals))

@@ -20,7 +20,9 @@
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-43)  ; vectors
   #:use-module (cps-debugger compat)
+  #:use-module (cps-debugger position)
   #:use-module (cps-debugger pretty)
   #:use-module (cps-debugger inspector)
   #:export (make-stepper
@@ -30,6 +32,10 @@
             stepper-history
             stepper-breakpoints
             stepper-state
+            set-stepper-position!
+            set-stepper-history!
+            set-stepper-breakpoints!
+            set-stepper-state!
             step-forward
             step-backward
             step-into
@@ -60,7 +66,7 @@
 (define* (make-stepper term #:key (breakpoints '()))
   "Create a new stepper for TERM with optional BREAKPOINTS."
   (make-stepper* term 
-                 '() ; Initial position (empty path)
+                 (make-position) ; Initial position (empty)
                  '() ; History
                  breakpoints
                  'ready))
@@ -69,18 +75,7 @@
   "Get the current context at the stepper's position."
   (let ((term (stepper-term stepper))
         (pos (stepper-position stepper)))
-    (navigate-to-position term pos)))
-
-(define (navigate-to-position term path)
-  "Navigate to a position in TERM specified by PATH."
-  (if (null? path)
-      term
-      (let ((index (car path))
-            (rest (cdr path)))
-        (cond
-         ((and (pair? term) (list? term))
-          (navigate-to-position (list-ref term index) rest))
-         (else term)))))
+    (position-navigate term pos)))
 
 (define (step-forward stepper)
   "Step forward to the next expression."

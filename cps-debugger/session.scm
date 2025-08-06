@@ -20,6 +20,7 @@
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-1)
   #:use-module (ice-9 format)
+  #:use-module (cps-debugger position)
   #:use-module (cps-debugger stepper)
   #:use-module (cps-debugger core)
   #:export (make-debug-session
@@ -83,9 +84,13 @@
          (stepper (make-stepper term)))
     (make-debug-session* id stepper debugger watches '() options)))
 
+;; Session counter for unique IDs
+(define *session-counter* 0)
+
 (define (generate-session-id)
   "Generate a unique session ID."
-  (format #f "session-~a" (current-time)))
+  (set! *session-counter* (+ *session-counter* 1))
+  (format #f "session-~a-~a" (current-time) *session-counter*))
 
 ;; Watch expressions
 (define (add-watch session name expression)
@@ -168,35 +173,56 @@
 ;; Persistence
 (define (save-session session filename)
   "Save session state to a file."
-  (call-with-output-file filename
-    (lambda (port)
-      (write `((id . ,(session-id session))
-               (position . ,(stepper-position (session-stepper session)))
-               (breakpoints . ,(stepper-breakpoints (session-stepper session)))
-               (watches . ,(session-watches session))
-               (options . ,(session-options session)))
-             port)))
-  (log-event session 'session-saved filename)
-  session)
+  (catch #t
+    (lambda ()
+      (call-with-output-file filename
+        (lambda (port)
+          (write `((id . ,(session-id session))
+                   (position . ,(position->list 
+                                (stepper-position (session-stepper session))))
+                   (breakpoints . ,(stepper-breakpoints (session-stepper session)))
+                   (watches . ,(session-watches session))
+                   (options . ,(session-options session)))
+                 port)))
+      (log-event session 'session-saved filename)
+      session)
+    (lambda (key . args)
+      (log-event session 'session-save-failed filename key args)
+      (error "Failed to save session" filename key args))))
 
 (define (load-session filename term)
   "Load a session from a file."
-  (let ((data (call-with-input-file filename read)))
-    (let* ((id (assoc-ref data 'id))
-           (position (assoc-ref data 'position))
-           (breakpoints (assoc-ref data 'breakpoints))
-           (watches (assoc-ref data 'watches))
-           (options (assoc-ref data 'options))
-           (session (make-debug-session term 
-                                       #:id id
-                                       #:watches watches
-                                       #:options options)))
-      ;; Restore stepper state
-      (let ((stepper (session-stepper session)))
-        (set-stepper-position! stepper position)
-        (set-stepper-breakpoints! stepper breakpoints))
-      (log-event session 'session-loaded filename)
-      session)))
+  (catch #t
+    (lambda ()
+      (let ((data (call-with-input-file filename
+                    (lambda (port)
+                      (catch #t
+                        (lambda () (read port))
+                        (lambda args
+                          (error "Invalid session file format" filename)))))))
+        ;; Validate session data
+        (unless (and (list? data)
+                     (assq 'id data)
+                     (assq 'position data))
+          (error "Invalid session data structure" filename))
+        
+        (let* ((id (assoc-ref data 'id))
+               (position-list (assoc-ref data 'position))
+               (breakpoints (or (assoc-ref data 'breakpoints) '()))
+               (watches (or (assoc-ref data 'watches) '()))
+               (options (or (assoc-ref data 'options) '()))
+               (session (make-debug-session term 
+                                           #:id id
+                                           #:watches watches
+                                           #:options options)))
+          ;; Restore stepper state with position handle
+          (let ((stepper (session-stepper session)))
+            (set-stepper-position! stepper (list->position position-list))
+            (set-stepper-breakpoints! stepper breakpoints))
+          (log-event session 'session-loaded filename)
+          session)))
+    (lambda (key . args)
+      (error "Cannot load session file" filename key args))))
 
 ;; Session summary
 (define* (session-summary session #:key (port (current-output-port)))

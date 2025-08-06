@@ -25,6 +25,8 @@
   #:export (cps-debug
             cps-step
             make-cps-debugger
+            cps-debugger?
+            debugger-term
             debugger-step
             debugger-continue
             debugger-break
