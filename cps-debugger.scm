@@ -21,23 +21,47 @@
   #:use-module (cps-debugger inspector)
   #:use-module (cps-debugger pretty)
   #:use-module (cps-debugger compat)
-  #:use-module (cps-debugger visualizer)
-  #:re-export (cps-debug
+  #:use-module (cps-debugger stepper)
+  #:use-module (cps-debugger session)
+  #:use-module (cps-debugger cli)
+  #:use-module (cps-debugger analysis)
+  #:re-export (;; Core
+               cps-debug
                cps-step
-               cps-inspect
-               cps-pretty-print
                make-cps-debugger
                debugger-step
                debugger-continue
                debugger-break
-               ;; From visualizer
-               stack->mermaid
-               trace->mermaid
-               continuation-chain->mermaid
-               eval-model->diagram
-               visualize-cps-flow
-               capture-evaluation-trace
-               create-call-graph))
+               
+               ;; Inspection
+               cps-inspect
+               cps-pretty-print
+               
+               ;; Analysis
+               analyze-cps
+               count-nodes
+               
+               ;; Stepper
+               make-stepper
+               step-forward
+               step-backward
+               step-into
+               step-over
+               step-out
+               add-breakpoint
+               remove-breakpoint
+               step-to-breakpoint
+               
+               ;; Session
+               make-debug-session
+               add-watch
+               remove-watch
+               save-session
+               load-session
+               
+               ;; CLI
+               start-debugger-cli
+               debugger-repl))
 
 ;;; Commentary:
 ;;;

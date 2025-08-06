@@ -149,10 +149,14 @@ Please ensure your code follows the GNU Guile coding standards and includes appr
 - [X] Comprehensive test suite
 - [X] Working examples
 
-*** Version 0.2.0
-- [ ] Step-through debugging
-- [ ] REPL integration
-- [ ] Basic breakpoint support
+*** Version 0.2.0 (Current)
+- [X] Step-through debugging
+- [X] Enhanced REPL integration
+- [X] Basic breakpoint support
+- [X] Debug session management
+- [X] Watch expressions
+- [X] Command-line interface
+- [X] Session persistence (save/load)
 
 *** Version 0.3.0
 - [ ] Full breakpoint system
